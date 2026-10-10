@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="m-0">📋 Логи действий</h3>
+    <span class="text-muted small">Показано последние {{ logs|length }} записей</span>
+</div>
+
+<!-- Фильтры -->
+<form class="row g-2 mb-3" method="get">
+    <div class="col-md-4">
+        <input type="text" name="user" value="{{ user_filter }}" class="form-control"
+               placeholder="Фильтр по пользователю...">
+    </div>
+    <div class="col-md-4">
+        <select name="action" class="form-select" onchange="this.form.submit()">
+            <option value="">— все действия —</option>
+            {% for a in all_actions %}
+                <option value="{{ a }}" {% if action_filter == a %}selected{% endif %}>
+                    {{ a }}
+                </option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-2">
+        <button class="btn btn-primary w-100">Применить</button>
+    </div>
+    <div class="col-md-2">
+        <a href="{{ url_for('routes.logs') }}" class="btn btn-outline-secondary w-100">
+            Сбросить
+        </a>
+    </div>
+</form>
+
+<!-- Таблица логов -->
+<div class="table-responsive">
+    <table class="table table-sm table-hover align-middle">
+        <thead class="table-light">
+            <tr>
+                <th style="width:160px;">Дата / время</th>
+                <th style="width:130px;">Пользователь</th>
+                <th style="width:180px;">Действие</th>
+                <th style="width:220px;">Объект</th>
+                <th>Подробности</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if logs %}
+                {% for log in logs %}
+                <tr>
+                    <td>
+                        <small>{{ log.created_at.strftime('%d.%m.%Y %H:%M:%S') }}</small>
+                    </td>
+                    <td>
+                        <span class="badge bg-secondary">{{ log.username or '—' }}</span>
+                    </td>
+                    <td>
+                        {% if log.action == 'login' %}
+                            <span class="badge bg-success">🔑 Вход</span>
+                        {% elif log.action == 'create_account' %}
+                            <span class="badge bg-primary">➕ Создание</span>
+                        {% elif log.action == 'edit_account' %}
+                            <span class="badge bg-info text-dark">✏️ Изменение</span>
+                        {% elif log.action == 'download_cookies' %}
+                            <span class="badge bg-warning text-dark">⬇ Скачивание куки</span>
+                        {% elif log.action == 'delete_cookies' %}
+                            <span class="badge bg-danger">🗑 Удаление куки</span>
+                        {% elif log.action == 'add_unsubscribe' %}
+                            <span class="badge" style="background:#7d3cff;">📨 Отписка</span>
+                        {% elif log.action == 'delete_unsubscribe' %}
+                            <span class="badge bg-secondary">🗑 Удаление отписки</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ log.action }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ log.target or '—' }}</td>
+                    <td><small class="text-muted">{{ log.details or '' }}</small></td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="5" class="text-center text-muted py-4">
+                        Логов пока нет
+                    </td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}

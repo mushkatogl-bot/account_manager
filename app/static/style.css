@@ -1,0 +1,44 @@
+/* Пульсация для "ОСТАВЬТЕ ОТЗЫВ" */
+@keyframes pulse {
+    0%   { opacity: 1; }
+    50%  { opacity: 0.4; }
+    100% { opacity: 1; }
+}
+
+/* Тёмная тема: подгонка цветных бейджей статусов */
+[data-bs-theme="dark"] .table-light {
+    --bs-table-bg: #2b3035;
+    --bs-table-color: #dee2e6;
+    --bs-table-border-color: #495057;
+}
+
+[data-bs-theme="dark"] .table-warning {
+    --bs-table-bg: #665c1e;
+    --bs-table-color: #fff3cd;
+}
+
+[data-bs-theme="dark"] .badge.bg-warning {
+    color: #000 !important;
+}
+
+/* Кастомные бейджи, где мы задавали background вручную */
+[data-bs-theme="dark"] .badge[style*="background:#c8a2ff"] {
+    /* TOP online */
+    color: #2a0066 !important;
+}
+
+[data-bs-theme="dark"] .badge[style*="background:#6b0000"] {
+    /* ALL gesperrt */
+    color: #ffd6d6 !important;
+}
+
+/* Мелочи */
+[data-bs-theme="dark"] .modal-content,
+[data-bs-theme="dark"] .form-control,
+[data-bs-theme="dark"] .form-select {
+    border-color: #495057;
+}
+
+[data-bs-theme="dark"] .bg-light {
+    background-color: #2b3035 !important;
+}

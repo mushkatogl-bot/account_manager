@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="m-0">👤 Админ-панель</h3>
+    <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addUserModal">
+        + Добавить пользователя
+    </button>
+</div>
+
+<!-- Таблица пользователей -->
+<div class="table-responsive">
+    <table class="table table-hover align-middle">
+        <thead class="table-light">
+            <tr>
+                <th style="width:60px;">ID</th>
+                <th>Логин</th>
+                <th style="width:120px;">Роль</th>
+                <th style="width:180px;">Создан</th>
+                <th style="width:280px;">Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for u in users %}
+            <tr>
+                <td>{{ u.id }}</td>
+                <td>
+                    <strong>{{ u.username }}</strong>
+                    {% if u.id == current_user.id %}
+                        <span class="badge bg-info text-dark">это ты</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if u.role == 'admin' %}
+                        <span class="badge bg-danger">admin</span>
+                    {% else %}
+                        <span class="badge bg-secondary">user</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <small class="text-muted">
+                        {{ u.created_at.strftime('%d.%m.%Y %H:%M') if u.created_at else '—' }}
+                    </small>
+                </td>
+                <td>
+                    <!-- Смена пароля -->
+                    <button type="button" class="btn btn-sm btn-outline-primary"
+                            onclick="openPasswordModal({{ u.id }}, '{{ u.username }}')">
+                        🔑 Пароль
+                    </button>
+
+                    <!-- Удаление -->
+                    {% if u.id != current_user.id and u.username != 'admin' %}
+                        <form method="post" action="{{ url_for('admin.user_delete', user_id=u.id) }}"
+                              class="d-inline"
+                              onsubmit="return confirm('Удалить пользователя {{ u.username }}?');">
+                            <button class="btn btn-sm btn-outline-danger">🗑 Удалить</button>
+                        </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- ============ МОДАЛКА ДОБАВЛЕНИЯ ============ -->
+<div class="modal fade" id="addUserModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="{{ url_for('admin.user_add') }}">
+        <div class="modal-header">
+          <h5 class="modal-title">Добавить пользователя</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Логин <span class="text-danger">*</span></label>
+            <input type="text" name="username" class="form-control" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Пароль <span class="text-danger">*</span></label>
+            <input type="text" name="password" class="form-control" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Роль</label>
+            <select name="role" class="form-select">
+              <option value="user">user (обычный)</option>
+              <option value="admin">admin (полный доступ)</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+          <button type="submit" class="btn btn-success">Создать</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ============ МОДАЛКА СМЕНЫ ПАРОЛЯ ============ -->
+<div class="modal fade" id="passwordModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" id="passwordForm">
+        <div class="modal-header">
+          <h5 class="modal-title">Сменить пароль: <span id="pwd_username"></span></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <label class="form-label">Новый пароль <span class="text-danger">*</span></label>
+          <input type="text" name="password" class="form-control" required>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+          <button type="submit" class="btn btn-primary">Сохранить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+function openPasswordModal(userId, username) {
+    document.getElementById("passwordForm").action = `/admin/users/${userId}/password`;
+    document.getElementById("pwd_username").textContent = username;
+    const modal = new bootstrap.Modal(document.getElementById("passwordModal"));
+    modal.show();
+}
+</script>
+
+{% endblock %}

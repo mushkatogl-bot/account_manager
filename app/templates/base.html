@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ru" data-bs-theme="light">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Account Manager</title>
+
+    <!-- Применяем сохранённую тему ДО отрисовки, чтобы не мигало -->
+    <script>
+        (function() {
+            const saved = localStorage.getItem("theme");
+            if (saved) {
+                document.documentElement.setAttribute("data-bs-theme", saved);
+            }
+        })();
+    </script>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<nav class="navbar navbar-expand-lg bg-dark px-3" data-bs-theme="dark">
+    <a class="navbar-brand" href="/">Account Manager</a>
+    <div class="ms-auto d-flex align-items-center">
+        <span class="text-light me-2 small">
+            {{ current_user.username }}
+            {% if current_user.role == 'admin' %}
+                <span class="badge bg-danger">admin</span>
+            {% endif %}
+        </span>
+        <a class="btn btn-outline-light btn-sm me-1" href="/logs">Логи</a>
+        {% if current_user.role == 'admin' %}
+            <a class="btn btn-outline-light btn-sm me-1" href="/admin/">Админка</a>
+        {% endif %}
+        <button class="btn btn-outline-light btn-sm me-1" type="button"
+                onclick="toggleTheme()" id="themeBtn" title="Переключить тему">
+            🌙
+        </button>
+        <a class="btn btn-outline-light btn-sm" href="/logout">Выйти</a>
+    </div>
+</nav>
+
+<div class="container mt-4">
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        {% for m in messages %}
+          <div class="alert alert-warning">{{ m }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+// ---- Тема ----
+function applyTheme(theme) {
+    document.documentElement.setAttribute("data-bs-theme", theme);
+    localStorage.setItem("theme", theme);
+    updateThemeBtn(theme);
+}
+
+function updateThemeBtn(theme) {
+    const btn = document.getElementById("themeBtn");
+    if (btn) btn.textContent = theme === "dark" ? "☀️" : "🌙";
+}
+
+function toggleTheme() {
+    const current = document.documentElement.getAttribute("data-bs-theme") || "light";
+    applyTheme(current === "dark" ? "light" : "dark");
+}
+
+// Применяем тему при загрузке
+document.addEventListener("DOMContentLoaded", function() {
+    const saved = localStorage.getItem("theme") || "light";
+    applyTheme(saved);
+});
+</script>
+</body>
+</html>

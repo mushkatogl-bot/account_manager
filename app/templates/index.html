@@ -1,0 +1,563 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="m-0">Аккаунты</h3>
+    <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addModal">
+        + Добавить аккаунт
+    </button>
+</div>
+
+<!-- Поиск и сортировка -->
+<form class="row g-2 mb-3" method="get">
+    <input type="hidden" name="tab" value="{{ tab }}">
+    <div class="col-md-6">
+        <input type="text" name="q" value="{{ q }}" class="form-control"
+               placeholder="Поиск по почте или нику...">
+    </div>
+    <div class="col-md-3">
+        <select name="sort" class="form-select" onchange="this.form.submit()">
+            <option value="reg_date" {% if sort_by == 'reg_date' %}selected{% endif %}>
+                Сортировать по дате
+            </option>
+            <option value="status" {% if sort_by == 'status' %}selected{% endif %}>
+                Сортировать по статусу
+            </option>
+        </select>
+    </div>
+    <div class="col-md-3">
+        <button class="btn btn-primary w-100">Найти</button>
+    </div>
+</form>
+
+<!-- Вкладки -->
+<ul class="nav nav-tabs mb-3">
+    <li class="nav-item">
+        <a class="nav-link {% if tab == 'working' %}active{% endif %}"
+           href="?tab=working&q={{ q }}&sort={{ sort_by }}">
+            В РАБОТЕ <span class="badge bg-success">{{ working_count }}</span>
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if tab == 'invalid' %}active{% endif %}"
+           href="?tab=invalid&q={{ q }}&sort={{ sort_by }}">
+            НЕВАЛИД / ПРОДАНЫ <span class="badge bg-danger">{{ invalid_count }}</span>
+        </a>
+    </li>
+</ul>
+
+<!-- Таблица -->
+<div class="table-responsive">
+    <table class="table table-hover align-middle">
+        <thead class="table-light">
+            <tr>
+                <th>Дата регистрации</th>
+                <th>Почта</th>
+                <th>Ник</th>
+                <th>Статус</th>
+                <th>Продажа</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% set rows = working if tab == 'working' else invalid %}
+            {% if rows %}
+                {% for a in rows %}
+                <tr style="cursor:pointer;"
+                    class="{% if a.needs_review %}table-warning{% endif %}"
+                    onclick="openAccount({{ a.id }})">
+                    <td>
+                        {{ a.reg_date.strftime('%d.%m.%Y') }}
+                        {% if a.reg_time %}<br><small class="text-muted">{{ a.reg_time }}</small>{% endif %}
+                    </td>
+                    <td>{{ a.email }}</td>
+                    <td>{{ a.nick or '—' }}</td>
+                    <td>
+                        {% if a.status == 'TOP online' %}
+                            <span class="badge" style="background:#c8a2ff; color:#2a0066;">TOP online</span>
+                        {% elif a.status == 'online' %}
+                            <span class="badge bg-success">online</span>
+                        {% elif a.status == 'Gesperrt' %}
+                            <span class="badge bg-danger">Gesperrt</span>
+                        {% elif a.status == 'unloc online' %}
+                            <span class="badge bg-primary">unloc online</span>
+                        {% elif a.status == 'Pending TOP' %}
+                            <span class="badge bg-warning text-dark">Pending TOP</span>
+                            {% if a.needs_review %}
+                                <br><span class="badge bg-danger mt-1 pulse-badge">
+                                    ⚠️ ОСТАВЬТЕ ОТЗЫВ
+                                </span>
+                            {% endif %}
+                        {% elif a.status == 'Anmelden' %}
+                            <span class="badge bg-secondary">Anmelden</span>
+                        {% elif a.status == 'ALL gesperrt' %}
+                            <span class="badge" style="background:#6b0000;">ALL gesperrt</span>
+                        {% elif a.status == 'SALE' %}
+                            <span class="badge" style="background:#7d3cff;">SALE</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ a.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if a.sold %}
+                            <span class="text-success">Продан</span>
+                            {% if a.sold_price %} <small>({{ a.sold_price }} €)</small>{% endif %}
+                        {% elif a.for_sale %}
+                            <span class="text-warning">На продажу</span>
+                        {% else %}
+                            <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="5" class="text-center text-muted py-4">
+                        Пока нет аккаунтов в этой вкладке
+                    </td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+<!-- ============ МОДАЛКА ДОБАВЛЕНИЯ ============ -->
+<div class="modal fade" id="addModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <form method="post" action="{{ url_for('routes.account_add') }}">
+        <div class="modal-header">
+          <h5 class="modal-title">Добавить аккаунт</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Дата регистрации <span class="text-danger">*</span></label>
+              <input type="date" name="reg_date" class="form-control" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Время регистрации</label>
+              <input type="time" name="reg_time" class="form-control">
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label">Почта <span class="text-danger">*</span></label>
+              <input type="email" name="email" class="form-control" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Пароль от почты <span class="text-danger">*</span></label>
+              <input type="text" name="email_password" class="form-control" required>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label">Ник аккаунта</label>
+              <input type="text" name="nick" class="form-control">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Пароль от аккаунта <span class="text-danger">*</span></label>
+              <input type="text" name="account_password" class="form-control" required>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label">Телефон</label>
+              <input type="text" name="phone" class="form-control">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Статус</label>
+              <select name="status" class="form-select">
+                <option value="online">online</option>
+                <option value="Gesperrt">Gesperrt</option>
+                <option value="TOP online">TOP online</option>
+                <option value="unloc online">unloc online</option>
+                <option value="Pending TOP">Pending TOP</option>
+                <option value="Anmelden">Anmelden</option>
+                <option value="ALL gesperrt">ALL gesperrt</option>
+                <option value="SALE">SALE (продан)</option>
+              </select>
+            </div>
+          </div>
+
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+          <button type="submit" class="btn btn-success">Добавить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ============ МОДАЛКА РЕДАКТИРОВАНИЯ ============ -->
+<div class="modal fade" id="editModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <form method="post" id="editForm">
+        <div class="modal-header">
+          <h5 class="modal-title">Редактировать аккаунт</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Дата регистрации <span class="text-danger">*</span></label>
+              <input type="date" name="reg_date" id="e_reg_date" class="form-control" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Время регистрации</label>
+              <input type="time" name="reg_time" id="e_reg_time" class="form-control">
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label">Почта <span class="text-danger">*</span></label>
+              <input type="email" name="email" id="e_email" class="form-control" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Пароль от почты <span class="text-danger">*</span></label>
+              <input type="text" name="email_password" id="e_email_password" class="form-control" required>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label">Ник аккаунта</label>
+              <input type="text" name="nick" id="e_nick" class="form-control">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Пароль от аккаунта <span class="text-danger">*</span></label>
+              <input type="text" name="account_password" id="e_account_password" class="form-control" required>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label">Телефон</label>
+              <input type="text" name="phone" id="e_phone" class="form-control">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Статус</label>
+              <select name="status" id="e_status" class="form-select">
+                <option value="online">online</option>
+                <option value="Gesperrt">Gesperrt</option>
+                <option value="TOP online">TOP online</option>
+                <option value="unloc online">unloc online</option>
+                <option value="Pending TOP">Pending TOP</option>
+                <option value="Anmelden">Anmelden</option>
+                <option value="ALL gesperrt">ALL gesperrt</option>
+                <option value="SALE">SALE (продан)</option>
+              </select>
+            </div>
+
+            <!-- Комментарий -->
+            <div class="col-12">
+              <label class="form-label">Комментарий</label>
+              <textarea name="comment" id="e_comment" class="form-control" rows="4"
+                        placeholder="Любые заметки по аккаунту..."></textarea>
+            </div>
+
+            <!-- КУКИ -->
+            <div class="col-12">
+              <hr>
+              <label class="form-label d-flex justify-content-between">
+                <span>🍪 Куки</span>
+                <span id="e_cookies_status" class="badge bg-secondary">нет</span>
+              </label>
+              <textarea name="cookies_text" id="e_cookies_text" class="form-control" rows="5"
+                        placeholder="Вставь сюда текст куки (JSON или Netscape)..."></textarea>
+              <div class="mt-2 d-flex gap-2">
+                <a id="e_cookies_download" href="#" class="btn btn-sm btn-outline-primary" target="_blank">
+                  ⬇ Скачать куки
+                </a>
+                <button type="button" class="btn btn-sm btn-outline-danger"
+                        onclick="deleteCookies()">
+                  🗑 Удалить куки
+                </button>
+              </div>
+            </div>
+
+            <!-- SUPPORT -->
+            <div class="col-12">
+              <hr>
+              <label class="form-label">🛠 Support</label>
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" name="support_sent" id="e_support_sent">
+                <label class="form-check-label" for="e_support_sent">
+                  Письмо в поддержку отправлено
+                </label>
+              </div>
+
+              <label class="form-label">Статус ответа</label>
+              <select name="support_status" id="e_support_status" class="form-select mb-2"
+                      onchange="onSupportStatusChange(this)">
+                <option value="">— не указан —</option>
+                <option value="pending">Ожидание ответа</option>
+                <option value="answered">Ответили</option>
+              </select>
+
+              <label class="form-label">Текст письма</label>
+              <textarea name="support_text" id="e_support_text" class="form-control" rows="3"
+                        placeholder="Текст письма в поддержку..."></textarea>
+            </div>
+
+            <!-- ПРОДАЖА -->
+            <div class="col-12">
+              <hr>
+              <label class="form-label">💰 Продажа</label>
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" name="for_sale" id="e_for_sale">
+                <label class="form-check-label" for="e_for_sale">
+                  Выставлен на продажу
+                </label>
+              </div>
+
+              <label class="form-label">Цена (€) — заполняется при статусе SALE</label>
+              <input type="number" step="0.01" name="sold_price" id="e_sold_price"
+                     class="form-control mb-2" placeholder="Например: 25">
+
+              <div id="e_sold_info" class="text-muted small"></div>
+            </div>
+
+            <!-- ОТПИСКИ -->
+            <div class="col-12">
+              <hr>
+              <label class="form-label d-flex justify-content-between">
+                <span>📨 Отписки</span>
+                <span id="e_unsubs_count" class="badge bg-secondary">0</span>
+              </label>
+
+              <!-- Список отписок -->
+              <div id="e_unsubs_list" class="mb-2"></div>
+
+              <!-- Форма добавления -->
+              <div class="border rounded p-2 bg-light">
+                <div class="row g-2">
+                  <div class="col-md-4">
+                    <input type="email" id="u_email" class="form-control form-control-sm"
+                           placeholder="Email собеседника">
+                  </div>
+                  <div class="col-md-3">
+                    <input type="date" id="u_date" class="form-control form-control-sm">
+                  </div>
+                  <div class="col-md-2">
+                    <input type="time" id="u_time" class="form-control form-control-sm">
+                  </div>
+                  <div class="col-md-2">
+                    <input type="text" id="u_comment" class="form-control form-control-sm"
+                           placeholder="Комментарий">
+                  </div>
+                  <div class="col-md-1">
+                    <button type="button" class="btn btn-sm btn-success w-100"
+                            onclick="addUnsub()">+</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+          <button type="submit" class="btn btn-primary">Сохранить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ============ СТИЛИ ============ -->
+<style>
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+.pulse-badge {
+    animation: pulse 1.5s infinite;
+}
+</style>
+
+<!-- ============ JS ============ -->
+<script>
+async function openAccount(id) {
+    const res = await fetch(`/account/${id}/json`);
+    if (!res.ok) {
+        alert("Не удалось загрузить аккаунт");
+        return;
+    }
+    const data = await res.json();
+
+    document.getElementById("editForm").action = `/account/${id}/edit`;
+    document.getElementById("editForm").dataset.accId = id;
+
+    // Основные поля
+    document.getElementById("e_reg_date").value = data.reg_date;
+    document.getElementById("e_reg_time").value = data.reg_time;
+    document.getElementById("e_email").value = data.email;
+    document.getElementById("e_email_password").value = data.email_password;
+    document.getElementById("e_nick").value = data.nick;
+    document.getElementById("e_account_password").value = data.account_password;
+    document.getElementById("e_phone").value = data.phone;
+    document.getElementById("e_status").value = data.status;
+    document.getElementById("e_comment").value = data.comment;
+
+    // Куки
+    document.getElementById("e_cookies_text").value = data.cookies_text;
+    const cookiesBadge = document.getElementById("e_cookies_status");
+    const cookiesDl = document.getElementById("e_cookies_download");
+    if (data.has_cookies) {
+        cookiesBadge.className = "badge bg-success";
+        cookiesBadge.textContent = "есть";
+        cookiesDl.classList.remove("disabled");
+        cookiesDl.href = `/account/${id}/cookies/download`;
+    } else {
+        cookiesBadge.className = "badge bg-secondary";
+        cookiesBadge.textContent = "нет";
+        cookiesDl.classList.add("disabled");
+        cookiesDl.href = "#";
+    }
+
+    // Support
+    document.getElementById("e_support_sent").checked = data.support_sent;
+    document.getElementById("e_support_status").value = data.support_status;
+    document.getElementById("e_support_text").value = data.support_text;
+
+    // Продажа
+    document.getElementById("e_for_sale").checked = data.for_sale;
+    document.getElementById("e_sold_price").value = data.sold_price;
+    const soldInfo = document.getElementById("e_sold_info");
+    if (data.sold_date) {
+        soldInfo.textContent = `Продан: ${data.sold_date}`;
+    } else {
+        soldInfo.textContent = "";
+    }
+
+    // Загружаем отписки
+    loadUnsubs(id);
+
+    const modal = new bootstrap.Modal(document.getElementById("editModal"));
+    modal.show();
+}
+
+
+// Удаление куки с подтверждением
+function deleteCookies() {
+    const id = document.getElementById("editForm").dataset.accId;
+    if (!id) return;
+
+    const ok = confirm(
+        "⚠️ ВЫ УВЕРЕНЫ ЧТО ХОТИТЕ УДАЛИТЬ КУКИШИ? ⚠️\n\n" +
+        "ЭТО ДЕЙСТВИЕ НЕЛЬЗЯ ОТМЕНИТЬ!\n\n" +
+        "Нажмите ОК чтобы удалить, Отмена — чтобы оставить."
+    );
+    if (!ok) return;
+
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = `/account/${id}/cookies/delete`;
+    document.body.appendChild(form);
+    form.submit();
+}
+
+
+// Автоподсказка при выборе "Ответили"
+function onSupportStatusChange(select) {
+    if (select.value === "answered") {
+        const status = document.getElementById("e_status").value;
+        if (!["unloc online", "ALL gesperrt"].includes(status)) {
+            const ok = confirm(
+                "Поддержка ответила!\n\n" +
+                "Изменить статус аккаунта на 'unloc online'?\n" +
+                "(Отмена — оставить как есть, потом поменяете вручную)"
+            );
+            if (ok) {
+                document.getElementById("e_status").value = "unloc online";
+            }
+        }
+    }
+}
+
+
+// ============ ОТПИСКИ ============
+
+async function loadUnsubs(accId) {
+    const res = await fetch(`/account/${accId}/unsubs/json`);
+    if (!res.ok) return;
+
+    const list = await res.json();
+    const container = document.getElementById("e_unsubs_list");
+    const counter = document.getElementById("e_unsubs_count");
+
+    counter.textContent = list.length;
+
+    if (list.length === 0) {
+        container.innerHTML = '<div class="text-muted small">Пока нет отписок</div>';
+        return;
+    }
+
+    container.innerHTML = list.map(u => `
+        <div class="d-flex justify-content-between align-items-center border rounded p-2 mb-1">
+            <div>
+                <strong>${u.email || '—'}</strong>
+                ${u.date ? `<small class="text-muted"> · ${u.date}${u.time ? ' ' + u.time : ''}</small>` : ''}
+                ${u.comment ? `<br><small>${u.comment}</small>` : ''}
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-danger"
+                    onclick="deleteUnsub(${u.id})">🗑</button>
+        </div>
+    `).join("");
+}
+
+
+async function addUnsub() {
+    const accId = document.getElementById("editForm").dataset.accId;
+    if (!accId) return;
+
+    const email = document.getElementById("u_email").value.trim();
+    const date = document.getElementById("u_date").value;
+    const time = document.getElementById("u_time").value;
+    const comment = document.getElementById("u_comment").value.trim();
+
+    if (!email && !date) {
+        alert("Заполни хотя бы email или дату");
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append("email", email);
+    formData.append("date", date);
+    formData.append("time", time);
+    formData.append("comment", comment);
+
+    const res = await fetch(`/account/${accId}/unsubs/add`, {
+        method: "POST",
+        body: formData,
+    });
+
+    if (!res.ok) {
+        alert("Ошибка добавления отписки");
+        return;
+    }
+
+    // Очищаем поля
+    document.getElementById("u_email").value = "";
+    document.getElementById("u_date").value = "";
+    document.getElementById("u_time").value = "";
+    document.getElementById("u_comment").value = "";
+
+    // Перезагружаем список
+    loadUnsubs(accId);
+}
+
+
+async function deleteUnsub(id) {
+    if (!confirm("Удалить эту отписку?")) return;
+
+    const res = await fetch(`/unsubs/${id}/delete`, { method: "POST" });
+    if (!res.ok) {
+        alert("Ошибка удаления");
+        return;
+    }
+
+    const accId = document.getElementById("editForm").dataset.accId;
+    loadUnsubs(accId);
+}
+</script>
+
+{% endblock %}
