@@ -160,13 +160,10 @@ class Account(db.Model):
         if self.support_sent:
             return "отправлено"
 
-
     @property
     def creator_username(self):
         """Имя пользователя, создавшего аккаунт"""
         return self.creator.username if self.creator else "—"
-
-    return None
 
 
 # ============================================================
