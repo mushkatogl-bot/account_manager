@@ -62,14 +62,15 @@
 <div class="table-responsive">
     <table class="table table-hover align-middle">
         <thead class="table-light">
-            <tr>
-                <th>Дата регистрации</th>
-                <th>Почта</th>
-                <th>Ник</th>
-                <th>Статус</th>
-                <th>Продажа</th>
-            </tr>
-        </thead>
+    <tr>
+        <th>Дата регистрации</th>
+        <th>Почта</th>
+        <th>Ник</th>
+        <th>Статус</th>
+        <th>Продажа</th>
+        <th style="width:40px;"></th>
+    </tr>
+</thead>
         <tbody>
             {% if tab == 'for_sale' %}{% set rows = for_sale %}
             {% elif tab == 'working' %}{% set rows = working %}
@@ -79,9 +80,9 @@
             {% if rows %}
                 {% for a in rows %}
                 <tr style="cursor:pointer;"
-                    class="account-row {% if a.needs_review %}table-warning{% endif %}"
-                    data-acc-id="{{ a.id }}"
-                    onclick="openAccount({{ a.id }})">
+    class="account-row {% if a.needs_review %}table-warning{% endif %}"
+    data-acc-id="{{ a.id }}"
+    onclick="openAccount({{ a.id }})">
                     <td>
                         {{ a.reg_date.strftime('%d.%m.%Y') }}
                         {% if a.reg_time %}<br><small class="text-muted">{{ a.reg_time }}</small>{% endif %}
@@ -125,11 +126,18 @@
                             <span class="text-muted">—</span>
                         {% endif %}
                     </td>
+                    <td class="text-center">
+                        <button type="button" class="btn-info-icon"
+                                onclick="event.stopPropagation(); toggleTooltip({{ a.id }}, this);"
+                                title="Краткая инфа">
+                            ℹ️
+                        </button>
+                    </td>
                 </tr>
                 {% endfor %}
             {% else %}
                 <tr>
-                    <td colspan="5" class="text-center text-muted py-4">
+                    <td colspan="6" class="text-center text-muted py-4">
                         Пока нет аккаунтов в этой вкладке
                     </td>
                 </tr>
@@ -456,6 +464,24 @@
 }
 .btn-copy:hover { background: #e9ecef; }
 [data-bs-theme="dark"] .btn-copy:hover { background: #495057; }
+
+.btn-info-icon {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 18px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    opacity: 0.5;
+    transition: opacity 0.15s, background 0.15s;
+}
+.btn-info-icon:hover {
+    opacity: 1;
+    background: #e9ecef;
+}
+[data-bs-theme="dark"] .btn-info-icon:hover {
+    background: #495057;
+}
 </style>
 
 <!-- ============ JS ============ -->
@@ -604,54 +630,50 @@ async function deleteUnsub(id) {
 }
 
 
-// ============ ТУЛТИП ПРИ НАВЕДЕНИИ ============
-let tooltipTimer = null;
+// ============ ТУЛТИП ПО КЛИКУ НА ℹ️ ============
 let currentAccId = null;
 let tooltipDataCache = {};
 
-document.addEventListener("DOMContentLoaded", function() {
-    document.querySelectorAll(".account-row").forEach(row => {
-        row.addEventListener("mouseenter", function(e) {
-            const accId = this.dataset.accId;
-            tooltipTimer = setTimeout(() => showTooltip(accId, e), 300);
-        });
-        row.addEventListener("mousemove", function(e) {
-            const tooltip = document.getElementById("accountTooltip");
-            if (tooltip.style.display === "block") {
-                positionTooltip(e);
-            }
-        });
-        row.addEventListener("mouseleave", function() {
-            if (tooltipTimer) { clearTimeout(tooltipTimer); tooltipTimer = null; }
-            hideTooltip();
-        });
-    });
+// Закрываем тултип при клике вне него и вне кнопки
+document.addEventListener("click", function(e) {
+    const tooltip = document.getElementById("accountTooltip");
+    if (tooltip.style.display !== "block") return;
 
-    // Скрываем тултип, если мышка ушла с него самого
-    document.getElementById("accountTooltip").addEventListener("mouseleave", function() {
-        hideTooltip();
-    });
+    // Если клик внутри тултипа — не закрываем
+    if (tooltip.contains(e.target)) return;
+
+    // Если клик по кнопке ℹ️ — не закрываем (обработается в toggleTooltip)
+    if (e.target.classList.contains("btn-info-icon")) return;
+
+    // Иначе — закрываем
+    hideTooltip();
 });
 
 
-async function showTooltip(accId, event) {
+async function toggleTooltip(accId, btn) {
     const tooltip = document.getElementById("accountTooltip");
+
+    // Если открыт для этого же аккаунта — закрываем
+    if (tooltip.style.display === "block" && currentAccId === accId) {
+        hideTooltip();
+        return;
+    }
 
     // Загружаем данные (кэш)
     let data = tooltipDataCache[accId];
     if (!data) {
         const res = await fetch(`/account/${accId}/json`);
-        if (!res.ok) return;
+        if (!res.ok) { alert("Не удалось загрузить данные"); return; }
         data = await res.json();
         tooltipDataCache[accId] = data;
     }
 
     currentAccId = accId;
 
-    // Пароль
+    // --- Пароль ---
     document.getElementById("tt_password").textContent = data.account_password || "—";
 
-    // Комментарий
+    // --- Комментарий ---
     const commentRow = document.getElementById("tt_comment_row");
     if (data.comment) {
         commentRow.style.display = "flex";
@@ -660,17 +682,17 @@ async function showTooltip(accId, event) {
         commentRow.style.display = "none";
     }
 
-    // Куки
+    // --- Куки ---
     document.getElementById("tt_cookies").textContent = data.has_cookies ? "есть" : "нет";
 
-    // Support
+    // --- Support ---
     let supportText = "—";
     if (data.support_status === "pending") supportText = "ожидание ответа";
     else if (data.support_status === "answered") supportText = "ответили";
     else if (data.support_sent) supportText = "отправлено";
     document.getElementById("tt_support").textContent = supportText;
 
-    // Продажа
+    // --- Продажа ---
     let saleText = "—";
     if (data.sold && data.sold_price) saleText = `продан за $${data.sold_price}`;
     else if (data.sold) saleText = "продан";
@@ -678,32 +700,33 @@ async function showTooltip(accId, event) {
     else if (data.for_sale) saleText = "на продажу";
     document.getElementById("tt_sale").textContent = saleText;
 
-    // Отписки
+    // --- Отписки ---
     const unsubsCount = await fetchUnsubsCount(accId);
     document.getElementById("tt_unsubs").textContent = unsubsCount > 0 ? `есть (${unsubsCount})` : "нет";
 
-    // Показываем и позиционируем
+    // --- Позиционируем статично рядом с кнопкой ---
     tooltip.style.display = "block";
-    positionTooltip(event);
+    positionTooltipStatic(btn);
 }
 
 
-function positionTooltip(event) {
+function positionTooltipStatic(btn) {
     const tooltip = document.getElementById("accountTooltip");
-    if (tooltip.style.display !== "block") return;
+    const rect = btn.getBoundingClientRect();
 
-    const offset = 15;
-    let x = event.clientX + offset;
-    let y = event.clientY + offset;
+    const offset = 8;
+    let x = rect.right - tooltip.offsetWidth;   // правый край тултипа = правый край кнопки
+    let y = rect.bottom + offset;
 
-    const tw = tooltip.offsetWidth;
-    const th = tooltip.offsetHeight;
+    // Не вылезаем за экран
     const ww = window.innerWidth;
     const wh = window.innerHeight;
+    const tw = tooltip.offsetWidth;
+    const th = tooltip.offsetHeight;
 
-    if (x + tw > ww - 10) x = event.clientX - tw - offset;
-    if (y + th > wh - 10) y = event.clientY - th - offset;
     if (x < 10) x = 10;
+    if (x + tw > ww - 10) x = ww - tw - 10;
+    if (y + th > wh - 10) y = rect.top - th - offset;
     if (y < 10) y = 10;
 
     tooltip.style.left = x + "px";
