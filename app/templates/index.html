@@ -33,15 +33,27 @@
 <!-- Вкладки -->
 <ul class="nav nav-tabs mb-3">
     <li class="nav-item">
+        <a class="nav-link {% if tab == 'for_sale' %}active{% endif %}"
+           href="?tab=for_sale&q={{ q }}&sort={{ sort_by }}">
+            🟣 FOR SALE <span class="badge" style="background:#7d3cff;">{{ for_sale_count }}</span>
+        </a>
+    </li>
+    <li class="nav-item">
         <a class="nav-link {% if tab == 'working' %}active{% endif %}"
            href="?tab=working&q={{ q }}&sort={{ sort_by }}">
-            В РАБОТЕ <span class="badge bg-success">{{ working_count }}</span>
+            🟢 В РАБОТЕ <span class="badge bg-success">{{ working_count }}</span>
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if tab == 'sold' %}active{% endif %}"
+           href="?tab=sold&q={{ q }}&sort={{ sort_by }}">
+            💚 ПРОДАНЫ <span class="badge bg-primary">{{ sold_count }}</span>
         </a>
     </li>
     <li class="nav-item">
         <a class="nav-link {% if tab == 'invalid' %}active{% endif %}"
            href="?tab=invalid&q={{ q }}&sort={{ sort_by }}">
-            НЕВАЛИД / ПРОДАНЫ <span class="badge bg-danger">{{ invalid_count }}</span>
+            🔴 НЕВАЛИД <span class="badge bg-danger">{{ invalid_count }}</span>
         </a>
     </li>
 </ul>
@@ -59,11 +71,16 @@
             </tr>
         </thead>
         <tbody>
-            {% set rows = working if tab == 'working' else invalid %}
+            {% if tab == 'for_sale' %}{% set rows = for_sale %}
+            {% elif tab == 'working' %}{% set rows = working %}
+            {% elif tab == 'sold' %}{% set rows = sold %}
+            {% else %}{% set rows = invalid %}{% endif %}
+
             {% if rows %}
                 {% for a in rows %}
                 <tr style="cursor:pointer;"
-                    class="{% if a.needs_review %}table-warning{% endif %}"
+                    class="account-row {% if a.needs_review %}table-warning{% endif %}"
+                    data-acc-id="{{ a.id }}"
                     onclick="openAccount({{ a.id }})">
                     <td>
                         {{ a.reg_date.strftime('%d.%m.%Y') }}
@@ -100,9 +117,10 @@
                     <td>
                         {% if a.sold %}
                             <span class="text-success">Продан</span>
-                            {% if a.sold_price %} <small>({{ a.sold_price }} €)</small>{% endif %}
+                            {% if a.sold_price %} <small>(${{ a.sold_price }})</small>{% endif %}
                         {% elif a.for_sale %}
                             <span class="text-warning">На продажу</span>
+                            {% if a.sold_price %} <small>(${{ a.sold_price }})</small>{% endif %}
                         {% else %}
                             <span class="text-muted">—</span>
                         {% endif %}
@@ -120,6 +138,37 @@
     </table>
 </div>
 
+<!-- ============ ПЛАВАЮЩИЙ ТУЛТИП ============ -->
+<div id="accountTooltip" class="account-tooltip" style="display:none;">
+    <div class="tooltip-row">
+        <span class="tooltip-label">🔑 Пароль акка:</span>
+        <span id="tt_password" class="tooltip-value mono"></span>
+        <button type="button" class="btn-copy" onclick="copyPassword(event)">
+            📋
+        </button>
+    </div>
+    <div class="tooltip-row" id="tt_comment_row" style="display:none;">
+        <span class="tooltip-label">📝 Комментарий:</span>
+        <span id="tt_comment" class="tooltip-value"></span>
+    </div>
+    <div class="tooltip-row">
+        <span class="tooltip-label">🍪 Куки:</span>
+        <span id="tt_cookies" class="tooltip-value"></span>
+    </div>
+    <div class="tooltip-row">
+        <span class="tooltip-label">🛠 Support:</span>
+        <span id="tt_support" class="tooltip-value"></span>
+    </div>
+    <div class="tooltip-row">
+        <span class="tooltip-label">💰 Продажа:</span>
+        <span id="tt_sale" class="tooltip-value"></span>
+    </div>
+    <div class="tooltip-row">
+        <span class="tooltip-label">📨 Отписка:</span>
+        <span id="tt_unsubs" class="tooltip-value"></span>
+    </div>
+</div>
+
 <!-- ============ МОДАЛКА ДОБАВЛЕНИЯ ============ -->
 <div class="modal fade" id="addModal" tabindex="-1">
   <div class="modal-dialog modal-lg">
@@ -130,7 +179,6 @@
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
-
           <div class="row g-3">
             <div class="col-md-6">
               <label class="form-label">Дата регистрации <span class="text-danger">*</span></label>
@@ -140,7 +188,6 @@
               <label class="form-label">Время регистрации</label>
               <input type="time" name="reg_time" class="form-control">
             </div>
-
             <div class="col-md-6">
               <label class="form-label">Почта <span class="text-danger">*</span></label>
               <input type="email" name="email" class="form-control" required>
@@ -149,7 +196,6 @@
               <label class="form-label">Пароль от почты <span class="text-danger">*</span></label>
               <input type="text" name="email_password" class="form-control" required>
             </div>
-
             <div class="col-md-6">
               <label class="form-label">Ник аккаунта</label>
               <input type="text" name="nick" class="form-control">
@@ -158,7 +204,6 @@
               <label class="form-label">Пароль от аккаунта <span class="text-danger">*</span></label>
               <input type="text" name="account_password" class="form-control" required>
             </div>
-
             <div class="col-md-6">
               <label class="form-label">Телефон</label>
               <input type="text" name="phone" class="form-control">
@@ -177,7 +222,6 @@
               </select>
             </div>
           </div>
-
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
@@ -198,7 +242,6 @@
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
-
           <div class="row g-3">
             <div class="col-md-6">
               <label class="form-label">Дата регистрации <span class="text-danger">*</span></label>
@@ -208,7 +251,6 @@
               <label class="form-label">Время регистрации</label>
               <input type="time" name="reg_time" id="e_reg_time" class="form-control">
             </div>
-
             <div class="col-md-6">
               <label class="form-label">Почта <span class="text-danger">*</span></label>
               <input type="email" name="email" id="e_email" class="form-control" required>
@@ -217,7 +259,6 @@
               <label class="form-label">Пароль от почты <span class="text-danger">*</span></label>
               <input type="text" name="email_password" id="e_email_password" class="form-control" required>
             </div>
-
             <div class="col-md-6">
               <label class="form-label">Ник аккаунта</label>
               <input type="text" name="nick" id="e_nick" class="form-control">
@@ -226,7 +267,6 @@
               <label class="form-label">Пароль от аккаунта <span class="text-danger">*</span></label>
               <input type="text" name="account_password" id="e_account_password" class="form-control" required>
             </div>
-
             <div class="col-md-6">
               <label class="form-label">Телефон</label>
               <input type="text" name="phone" id="e_phone" class="form-control">
@@ -282,7 +322,6 @@
                   Письмо в поддержку отправлено
                 </label>
               </div>
-
               <label class="form-label">Статус ответа</label>
               <select name="support_status" id="e_support_status" class="form-select mb-2"
                       onchange="onSupportStatusChange(this)">
@@ -290,7 +329,6 @@
                 <option value="pending">Ожидание ответа</option>
                 <option value="answered">Ответили</option>
               </select>
-
               <label class="form-label">Текст письма</label>
               <textarea name="support_text" id="e_support_text" class="form-control" rows="3"
                         placeholder="Текст письма в поддержку..."></textarea>
@@ -306,11 +344,9 @@
                   Выставлен на продажу
                 </label>
               </div>
-
-              <label class="form-label">Цена (€) — заполняется при статусе SALE</label>
+              <label class="form-label">Цена ($)</label>
               <input type="number" step="0.01" name="sold_price" id="e_sold_price"
                      class="form-control mb-2" placeholder="Например: 25">
-
               <div id="e_sold_info" class="text-muted small"></div>
             </div>
 
@@ -321,11 +357,7 @@
                 <span>📨 Отписки</span>
                 <span id="e_unsubs_count" class="badge bg-secondary">0</span>
               </label>
-
-              <!-- Список отписок -->
               <div id="e_unsubs_list" class="mb-2"></div>
-
-              <!-- Форма добавления -->
               <div class="border rounded p-2 bg-light">
                 <div class="row g-2">
                   <div class="col-md-4">
@@ -349,9 +381,7 @@
                 </div>
               </div>
             </div>
-
           </div>
-
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
@@ -368,25 +398,77 @@
     0%, 100% { opacity: 1; }
     50% { opacity: 0.4; }
 }
-.pulse-badge {
-    animation: pulse 1.5s infinite;
+.pulse-badge { animation: pulse 1.5s infinite; }
+
+/* === ТУЛТИП === */
+.account-tooltip {
+    position: fixed;
+    z-index: 9999;
+    background: #ffffff;
+    border: 2px solid #c8a2ff;
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+    padding: 10px 12px;
+    min-width: 320px;
+    max-width: 500px;
+    font-size: 13px;
+    pointer-events: auto;
 }
+[data-bs-theme="dark"] .account-tooltip {
+    background: #2b3035;
+    border-color: #c8a2ff;
+    color: #dee2e6;
+}
+.tooltip-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin-bottom: 4px;
+    line-height: 1.4;
+}
+.tooltip-row:last-child { margin-bottom: 0; }
+.tooltip-label {
+    font-weight: 600;
+    white-space: nowrap;
+    color: #555;
+}
+[data-bs-theme="dark"] .tooltip-label { color: #adb5bd; }
+.tooltip-value {
+    flex: 1;
+    word-break: break-word;
+}
+.tooltip-value.mono {
+    font-family: monospace;
+    background: #f5f5f5;
+    padding: 0 4px;
+    border-radius: 3px;
+}
+[data-bs-theme="dark"] .tooltip-value.mono {
+    background: #1a1d20;
+}
+.btn-copy {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0 4px;
+    border-radius: 3px;
+}
+.btn-copy:hover { background: #e9ecef; }
+[data-bs-theme="dark"] .btn-copy:hover { background: #495057; }
 </style>
 
 <!-- ============ JS ============ -->
 <script>
+// ============ МОДАЛКА ============
 async function openAccount(id) {
     const res = await fetch(`/account/${id}/json`);
-    if (!res.ok) {
-        alert("Не удалось загрузить аккаунт");
-        return;
-    }
+    if (!res.ok) { alert("Не удалось загрузить аккаунт"); return; }
     const data = await res.json();
 
     document.getElementById("editForm").action = `/account/${id}/edit`;
     document.getElementById("editForm").dataset.accId = id;
 
-    // Основные поля
     document.getElementById("e_reg_date").value = data.reg_date;
     document.getElementById("e_reg_time").value = data.reg_time;
     document.getElementById("e_email").value = data.email;
@@ -397,7 +479,6 @@ async function openAccount(id) {
     document.getElementById("e_status").value = data.status;
     document.getElementById("e_comment").value = data.comment;
 
-    // Куки
     document.getElementById("e_cookies_text").value = data.cookies_text;
     const cookiesBadge = document.getElementById("e_cookies_status");
     const cookiesDl = document.getElementById("e_cookies_download");
@@ -413,22 +494,16 @@ async function openAccount(id) {
         cookiesDl.href = "#";
     }
 
-    // Support
     document.getElementById("e_support_sent").checked = data.support_sent;
     document.getElementById("e_support_status").value = data.support_status;
     document.getElementById("e_support_text").value = data.support_text;
 
-    // Продажа
     document.getElementById("e_for_sale").checked = data.for_sale;
     document.getElementById("e_sold_price").value = data.sold_price;
     const soldInfo = document.getElementById("e_sold_info");
-    if (data.sold_date) {
-        soldInfo.textContent = `Продан: ${data.sold_date}`;
-    } else {
-        soldInfo.textContent = "";
-    }
+    if (data.sold_date) { soldInfo.textContent = `Продан: ${data.sold_date}`; }
+    else { soldInfo.textContent = ""; }
 
-    // Загружаем отписки
     loadUnsubs(id);
 
     const modal = new bootstrap.Modal(document.getElementById("editModal"));
@@ -436,18 +511,15 @@ async function openAccount(id) {
 }
 
 
-// Удаление куки с подтверждением
 function deleteCookies() {
     const id = document.getElementById("editForm").dataset.accId;
     if (!id) return;
-
     const ok = confirm(
         "⚠️ ВЫ УВЕРЕНЫ ЧТО ХОТИТЕ УДАЛИТЬ КУКИШИ? ⚠️\n\n" +
         "ЭТО ДЕЙСТВИЕ НЕЛЬЗЯ ОТМЕНИТЬ!\n\n" +
         "Нажмите ОК чтобы удалить, Отмена — чтобы оставить."
     );
     if (!ok) return;
-
     const form = document.createElement("form");
     form.method = "POST";
     form.action = `/account/${id}/cookies/delete`;
@@ -456,7 +528,6 @@ function deleteCookies() {
 }
 
 
-// Автоподсказка при выборе "Ответили"
 function onSupportStatusChange(select) {
     if (select.value === "answered") {
         const status = document.getElementById("e_status").value;
@@ -466,31 +537,24 @@ function onSupportStatusChange(select) {
                 "Изменить статус аккаунта на 'unloc online'?\n" +
                 "(Отмена — оставить как есть, потом поменяете вручную)"
             );
-            if (ok) {
-                document.getElementById("e_status").value = "unloc online";
-            }
+            if (ok) { document.getElementById("e_status").value = "unloc online"; }
         }
     }
 }
 
 
 // ============ ОТПИСКИ ============
-
 async function loadUnsubs(accId) {
     const res = await fetch(`/account/${accId}/unsubs/json`);
     if (!res.ok) return;
-
     const list = await res.json();
     const container = document.getElementById("e_unsubs_list");
     const counter = document.getElementById("e_unsubs_count");
-
     counter.textContent = list.length;
-
     if (list.length === 0) {
         container.innerHTML = '<div class="text-muted small">Пока нет отписок</div>';
         return;
     }
-
     container.innerHTML = list.map(u => `
         <div class="d-flex justify-content-between align-items-center border rounded p-2 mb-1">
             <div>
@@ -508,16 +572,11 @@ async function loadUnsubs(accId) {
 async function addUnsub() {
     const accId = document.getElementById("editForm").dataset.accId;
     if (!accId) return;
-
     const email = document.getElementById("u_email").value.trim();
     const date = document.getElementById("u_date").value;
     const time = document.getElementById("u_time").value;
     const comment = document.getElementById("u_comment").value.trim();
-
-    if (!email && !date) {
-        alert("Заполни хотя бы email или дату");
-        return;
-    }
+    if (!email && !date) { alert("Заполни хотя бы email или дату"); return; }
 
     const formData = new FormData();
     formData.append("email", email);
@@ -525,38 +584,159 @@ async function addUnsub() {
     formData.append("time", time);
     formData.append("comment", comment);
 
-    const res = await fetch(`/account/${accId}/unsubs/add`, {
-        method: "POST",
-        body: formData,
-    });
+    const res = await fetch(`/account/${accId}/unsubs/add`, { method: "POST", body: formData });
+    if (!res.ok) { alert("Ошибка добавления отписки"); return; }
 
-    if (!res.ok) {
-        alert("Ошибка добавления отписки");
-        return;
-    }
-
-    // Очищаем поля
     document.getElementById("u_email").value = "";
     document.getElementById("u_date").value = "";
     document.getElementById("u_time").value = "";
     document.getElementById("u_comment").value = "";
-
-    // Перезагружаем список
     loadUnsubs(accId);
 }
 
 
 async function deleteUnsub(id) {
     if (!confirm("Удалить эту отписку?")) return;
-
     const res = await fetch(`/unsubs/${id}/delete`, { method: "POST" });
-    if (!res.ok) {
-        alert("Ошибка удаления");
-        return;
-    }
-
+    if (!res.ok) { alert("Ошибка удаления"); return; }
     const accId = document.getElementById("editForm").dataset.accId;
     loadUnsubs(accId);
+}
+
+
+// ============ ТУЛТИП ПРИ НАВЕДЕНИИ ============
+let tooltipTimer = null;
+let currentAccId = null;
+let tooltipDataCache = {};
+
+document.addEventListener("DOMContentLoaded", function() {
+    document.querySelectorAll(".account-row").forEach(row => {
+        row.addEventListener("mouseenter", function(e) {
+            const accId = this.dataset.accId;
+            tooltipTimer = setTimeout(() => showTooltip(accId, e), 300);
+        });
+        row.addEventListener("mousemove", function(e) {
+            const tooltip = document.getElementById("accountTooltip");
+            if (tooltip.style.display === "block") {
+                positionTooltip(e);
+            }
+        });
+        row.addEventListener("mouseleave", function() {
+            if (tooltipTimer) { clearTimeout(tooltipTimer); tooltipTimer = null; }
+            hideTooltip();
+        });
+    });
+
+    // Скрываем тултип, если мышка ушла с него самого
+    document.getElementById("accountTooltip").addEventListener("mouseleave", function() {
+        hideTooltip();
+    });
+});
+
+
+async function showTooltip(accId, event) {
+    const tooltip = document.getElementById("accountTooltip");
+
+    // Загружаем данные (кэш)
+    let data = tooltipDataCache[accId];
+    if (!data) {
+        const res = await fetch(`/account/${accId}/json`);
+        if (!res.ok) return;
+        data = await res.json();
+        tooltipDataCache[accId] = data;
+    }
+
+    currentAccId = accId;
+
+    // Пароль
+    document.getElementById("tt_password").textContent = data.account_password || "—";
+
+    // Комментарий
+    const commentRow = document.getElementById("tt_comment_row");
+    if (data.comment) {
+        commentRow.style.display = "flex";
+        document.getElementById("tt_comment").textContent = data.comment;
+    } else {
+        commentRow.style.display = "none";
+    }
+
+    // Куки
+    document.getElementById("tt_cookies").textContent = data.has_cookies ? "есть" : "нет";
+
+    // Support
+    let supportText = "—";
+    if (data.support_status === "pending") supportText = "ожидание ответа";
+    else if (data.support_status === "answered") supportText = "ответили";
+    else if (data.support_sent) supportText = "отправлено";
+    document.getElementById("tt_support").textContent = supportText;
+
+    // Продажа
+    let saleText = "—";
+    if (data.sold && data.sold_price) saleText = `продан за $${data.sold_price}`;
+    else if (data.sold) saleText = "продан";
+    else if (data.for_sale && data.sold_price) saleText = `на продажу за $${data.sold_price}`;
+    else if (data.for_sale) saleText = "на продажу";
+    document.getElementById("tt_sale").textContent = saleText;
+
+    // Отписки
+    const unsubsCount = await fetchUnsubsCount(accId);
+    document.getElementById("tt_unsubs").textContent = unsubsCount > 0 ? `есть (${unsubsCount})` : "нет";
+
+    // Показываем и позиционируем
+    tooltip.style.display = "block";
+    positionTooltip(event);
+}
+
+
+function positionTooltip(event) {
+    const tooltip = document.getElementById("accountTooltip");
+    if (tooltip.style.display !== "block") return;
+
+    const offset = 15;
+    let x = event.clientX + offset;
+    let y = event.clientY + offset;
+
+    const tw = tooltip.offsetWidth;
+    const th = tooltip.offsetHeight;
+    const ww = window.innerWidth;
+    const wh = window.innerHeight;
+
+    if (x + tw > ww - 10) x = event.clientX - tw - offset;
+    if (y + th > wh - 10) y = event.clientY - th - offset;
+    if (x < 10) x = 10;
+    if (y < 10) y = 10;
+
+    tooltip.style.left = x + "px";
+    tooltip.style.top = y + "px";
+}
+
+
+function hideTooltip() {
+    document.getElementById("accountTooltip").style.display = "none";
+    currentAccId = null;
+}
+
+
+async function fetchUnsubsCount(accId) {
+    try {
+        const res = await fetch(`/account/${accId}/unsubs/json`);
+        if (!res.ok) return 0;
+        const list = await res.json();
+        return list.length;
+    } catch { return 0; }
+}
+
+
+function copyPassword(event) {
+    event.stopPropagation();
+    const pass = document.getElementById("tt_password").textContent;
+    if (!pass || pass === "—") return;
+    navigator.clipboard.writeText(pass).then(() => {
+        const btn = event.target;
+        const old = btn.textContent;
+        btn.textContent = "✅";
+        setTimeout(() => { btn.textContent = old; }, 1000);
+    });
 }
 </script>
 

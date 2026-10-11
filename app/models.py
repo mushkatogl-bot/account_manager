@@ -25,37 +25,35 @@ class Account(db.Model):
     id = db.Column(db.Integer, primary_key=True)
 
     # --- Основное ---
-    reg_date = db.Column(db.Date, nullable=False)            # дата регистрации (обязательно)
-    reg_time = db.Column(db.String(8), nullable=True)        # время "12:30" (не обязательно)
-    email = db.Column(db.String(255), nullable=False)        # почта
-    email_password = db.Column(db.String(255), nullable=False)  # пароль от почты
-    nick = db.Column(db.String(255), nullable=True)          # ник аккаунта
-    account_password = db.Column(db.String(255), nullable=False)  # пароль от аккаунта
-    phone = db.Column(db.String(64), nullable=True)          # телефон
+    reg_date = db.Column(db.Date, nullable=False)
+    reg_time = db.Column(db.String(8), nullable=True)
+    email = db.Column(db.String(255), nullable=False)
+    email_password = db.Column(db.String(255), nullable=False)
+    nick = db.Column(db.String(255), nullable=True)
+    account_password = db.Column(db.String(255), nullable=False)
+    phone = db.Column(db.String(64), nullable=True)
 
     # --- Статус ---
-    # Возможные: Gesperrt, online, TOP online, unloc online, Pending TOP,
-    #            Anmelden, ALL gesperrt, SALE
     status = db.Column(db.String(32), default="online", nullable=False)
 
-    # --- Куки (храним текстом) ---
+    # --- Куки ---
     cookies_text = db.Column(db.Text, nullable=True)
 
     # --- Support ---
-    support_sent = db.Column(db.Boolean, default=False)      # письмо отправлено
-    support_status = db.Column(db.String(16), nullable=True)  # "pending" / "answered" / None
-    support_text = db.Column(db.Text, nullable=True)         # текст письма
+    support_sent = db.Column(db.Boolean, default=False)
+    support_status = db.Column(db.String(16), nullable=True)  # "pending" / "answered"
+    support_text = db.Column(db.Text, nullable=True)
 
     # --- Продажа ---
-    for_sale = db.Column(db.Boolean, default=False)          # выставлен на продажу
-    sold = db.Column(db.Boolean, default=False)              # продан
-    sold_date = db.Column(db.DateTime, nullable=True)        # дата продажи
-    sold_price = db.Column(db.Float, nullable=True)          # цена
+    for_sale = db.Column(db.Boolean, default=False)
+    sold = db.Column(db.Boolean, default=False)
+    sold_date = db.Column(db.DateTime, nullable=True)
+    sold_price = db.Column(db.Float, nullable=True)
 
     # --- Pending TOP ---
-    pending_since = db.Column(db.DateTime, nullable=True)    # когда поставили Pending TOP
+    pending_since = db.Column(db.DateTime, nullable=True)
 
-    # --- Комментарий (общий) ---
+    # --- Комментарий ---
     comment = db.Column(db.Text, nullable=True)
 
     # --- Служебное ---
@@ -70,24 +68,60 @@ class Account(db.Model):
     def __repr__(self):
         return f"<Account {self.email} [{self.status}]>"
 
-    # Удобные свойства для шаблонов
+    # ============================================================
+    # ВКЛАДКИ
+    # ============================================================
     @property
-    def is_invalid(self):
-        """Попадает ли во вкладку НЕВАЛИД/ПРОДАНЫ"""
-        return self.status in ("Anmelden", "ALL gesperrt", "SALE") or self.sold
+    def tab_category(self):
+        """
+        К какой вкладке относится аккаунт.
+        Возвращает: 'for_sale', 'working', 'sold', 'invalid'
+        """
+        # Проданные — приоритет №1
+        if self.sold or self.status == "SALE":
+            return "sold"
+
+        # Невалидные — приоритет №2
+        if self.status in ("Anmelden", "ALL gesperrt"):
+            return "invalid"
+
+        # FOR SALE — Pending TOP и TOP online
+        if self.status in ("Pending TOP", "TOP online"):
+            return "for_sale"
+
+        # Всё остальное — в работе (online, Gesperrt, unloc online)
+        return "working"
 
     @property
-    def is_working(self):
-        """Попадает ли во вкладку В РАБОТЕ"""
-        return not self.is_invalid
+    def is_for_sale_tab(self):
+        return self.tab_category == "for_sale"
 
+    @property
+    def is_working_tab(self):
+        return self.tab_category == "working"
+
+    @property
+    def is_sold_tab(self):
+        return self.tab_category == "sold"
+
+    @property
+    def is_invalid_tab(self):
+        return self.tab_category == "invalid"
+
+    # ============================================================
+    # ПОДСВЕТКА PENDING TOP (ОСТАВЬТЕ ОТЗЫВ)
+    # ============================================================
     @property
     def needs_review(self):
-        """С момента последней отписки прошло ≥24ч, а статус всё ещё Pending TOP"""
+        """
+        True если:
+        - статус Pending TOP
+        - есть хотя бы одна отписка
+        - с момента САМОЙ СВЕЖЕЙ отписки прошло ≥ 24 часа
+        """
         if self.status != "Pending TOP":
             return False
 
-        # Ищем самую свежую отписку
         if not self.unsubscribes:
             return False
 
@@ -103,6 +137,29 @@ class Account(db.Model):
         delta = datetime.utcnow() - latest
         return delta.total_seconds() >= 24 * 3600
 
+    # ============================================================
+    # ВСПОМОГАТЕЛЬНЫЕ СВОЙСТВА (для тултипа)
+    # ============================================================
+    @property
+    def unsubs_count(self):
+        return len(self.unsubscribes)
+
+    @property
+    def has_unsubs(self):
+        return len(self.unsubscribes) > 0
+
+    @property
+    def support_status_display(self):
+        if not self.support_sent and not self.support_status:
+            return None
+        if self.support_status == "pending":
+            return "ожидание"
+        if self.support_status == "answered":
+            return "ответили"
+        if self.support_sent:
+            return "отправлено"
+        return None
+
 
 # ============================================================
 # ОТПИСКИ
@@ -113,14 +170,14 @@ class Unsubscribe(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     account_id = db.Column(db.Integer, db.ForeignKey("accounts.id"), nullable=False)
     email = db.Column(db.String(255), nullable=True)
-    date = db.Column(db.Date, nullable=True)      # дата отписки
-    time = db.Column(db.String(8), nullable=True) # время "22:30"
+    date = db.Column(db.Date, nullable=True)
+    time = db.Column(db.String(8), nullable=True)
     comment = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     @property
     def datetime_full(self):
-        """Дата + время отписки в виде datetime"""
+        """Дата + время отписки в виде datetime (UTC)"""
         if not self.date:
             return None
         if self.time:
@@ -141,10 +198,10 @@ class Log(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, nullable=True)
-    username = db.Column(db.String(64), nullable=True)       # на случай, если юзера удалят
-    action = db.Column(db.String(64), nullable=False)        # "login", "create_account", ...
-    target = db.Column(db.String(255), nullable=True)        # id/email объекта
-    details = db.Column(db.Text, nullable=True)              # подробности
+    username = db.Column(db.String(64), nullable=True)
+    action = db.Column(db.String(64), nullable=False)
+    target = db.Column(db.String(255), nullable=True)
+    details = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def __repr__(self):
