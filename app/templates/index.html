@@ -67,7 +67,8 @@
         <th>Почта</th>
         <th>Ник</th>
         <th>Статус</th>
-        <th>Продажа</th>
+                <th>Продажа</th>
+        <th style="width:100px;">Создал</th>
         <th style="width:40px;"></th>
     </tr>
 </thead>
@@ -115,7 +116,7 @@
                             <span class="badge bg-secondary">{{ a.status }}</span>
                         {% endif %}
                     </td>
-                    <td>
+                                        <td>
                         {% if a.sold %}
                             <span class="text-success">Продан</span>
                             {% if a.sold_price %} <small>(${{ a.sold_price }})</small>{% endif %}
@@ -125,6 +126,16 @@
                         {% else %}
                             <span class="text-muted">—</span>
                         {% endif %}
+                    </td>
+                    <td>
+                        <small class="text-muted">{{ a.creator_username }}</small>
+                    </td>
+                    <td class="text-center">
+                        <button type="button" class="btn-info-icon"
+                                onclick="event.stopPropagation(); toggleTooltip({{ a.id }}, this);"
+                                title="Краткая инфа">
+                            ℹ️
+                        </button>
                     </td>
                     <td class="text-center">
                         <button type="button" class="btn-info-icon"
