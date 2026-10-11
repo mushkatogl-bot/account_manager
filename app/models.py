@@ -58,6 +58,7 @@ class Account(db.Model):
 
     # --- Служебное ---
     created_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    creator = db.relationship("User", foreign_keys=[created_by], lazy=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -158,7 +159,14 @@ class Account(db.Model):
             return "ответили"
         if self.support_sent:
             return "отправлено"
-        return None
+
+
+    @property
+    def creator_username(self):
+        """Имя пользователя, создавшего аккаунт"""
+        return self.creator.username if self.creator else "—"
+
+    return None
 
 
 # ============================================================
