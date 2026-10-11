@@ -160,9 +160,13 @@
         <span id="tt_comment" class="tooltip-value"></span>
     </div>
     <div class="tooltip-row">
-        <span class="tooltip-label">🍪 Куки:</span>
-        <span id="tt_cookies" class="tooltip-value"></span>
-    </div>
+    <span class="tooltip-label">🍪Cookie:</span>
+    <span id="tt_cookies" class="tooltip-value"></span>
+    <a id="tt_cookies_download" href="#" class="btn-tooltip-dl" style="display:none;"
+       onclick="event.stopPropagation();">
+        ⬇ Скачать
+    </a>
+</div>
     <div class="tooltip-row">
         <span class="tooltip-label">🛠 Support:</span>
         <span id="tt_support" class="tooltip-value"></span>
@@ -462,6 +466,23 @@
     padding: 0 4px;
     border-radius: 3px;
 }
+.btn-tooltip-dl {
+    display: inline-block;
+    background: #0d6efd;
+    color: #fff !important;
+    text-decoration: none;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-left: 6px;
+    white-space: nowrap;
+    transition: background 0.15s;
+}
+.btn-tooltip-dl:hover {
+    background: #0b5ed7;
+    color: #fff !important;
+}
+
 .btn-copy:hover { background: #e9ecef; }
 [data-bs-theme="dark"] .btn-copy:hover { background: #495057; }
 
@@ -683,7 +704,16 @@ async function toggleTooltip(accId, btn) {
     }
 
     // --- Куки ---
+        // --- Куки ---
     document.getElementById("tt_cookies").textContent = data.has_cookies ? "есть" : "нет";
+    const ttCookiesDl = document.getElementById("tt_cookies_download");
+    if (data.has_cookies) {
+        ttCookiesDl.style.display = "inline-block";
+        ttCookiesDl.href = `/account/${accId}/cookies/download`;
+    } else {
+        ttCookiesDl.style.display = "none";
+        ttCookiesDl.href = "#";
+    }
 
     // --- Support ---
     let supportText = "—";
