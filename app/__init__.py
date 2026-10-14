@@ -16,10 +16,11 @@ def create_app():
     login_manager.login_view = "auth.login"
     login_manager.login_message = "Пожалуйста, войдите, чтобы получить доступ."
 
-    from app import routes, auth, admin
+    from app import routes, auth, admin, accounting
     app.register_blueprint(auth.bp)
     app.register_blueprint(routes.bp)
     app.register_blueprint(admin.bp)
+    app.register_blueprint(accounting.bp)
 
     with app.app_context():
         db.create_all()

@@ -224,6 +224,11 @@
               <label class="form-label">Телефон</label>
               <input type="text" name="phone" class="form-control">
             </div>
+              <div class="col-md-6">
+              <label class="form-label">Цена за номер ($)</label>
+              <input type="number" step="0.01" min="0" name="cost_amount"
+                     class="form-control" placeholder="По умолчанию: 2.00">
+            </div>
             <div class="col-md-6">
               <label class="form-label">Статус</label>
               <select name="status" class="form-select">
@@ -528,6 +533,7 @@ async function openAccount(id) {
     document.getElementById("e_account_password").value = data.account_password;
     document.getElementById("e_phone").value = data.phone;
     document.getElementById("e_status").value = data.status;
+    document.getElementById("e_cost_amount").value = data.cost_amount;
     document.getElementById("e_comment").value = data.comment;
 
     document.getElementById("e_cookies_text").value = data.cookies_text;

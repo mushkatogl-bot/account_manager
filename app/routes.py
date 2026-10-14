@@ -79,6 +79,9 @@ def account_add():
         flash("Неверный формат даты", "danger")
         return redirect(url_for("routes.index"))
 
+    cost_str = request.form.get("cost_amount", "").strip()
+    cost_amount = float(cost_str) if cost_str else None
+
     a = Account(
         reg_date=reg_date,
         reg_time=reg_time,
@@ -88,6 +91,7 @@ def account_add():
         account_password=account_password,
         phone=phone,
         status=status,
+        cost_amount=cost_amount,
         created_by=current_user.id,
     )
 
@@ -142,6 +146,7 @@ def account_json(acc_id):
         "support_status": a.support_status or "",
         "support_text": a.support_text or "",
         "comment": a.comment or "",
+        "cost_amount": a.cost_amount if a.cost_amount is not None else "",
     }
 
 
@@ -164,6 +169,8 @@ def account_edit(acc_id):
     a.phone = request.form.get("phone", "").strip() or None
     a.status = request.form.get("status", "online")
     a.comment = request.form.get("comment", "").strip() or None
+    cost_str = request.form.get("cost_amount", "").strip()
+    a.cost_amount = float(cost_str) if cost_str else None
 
     # --- Продажа ---
     a.for_sale = request.form.get("for_sale") == "on"

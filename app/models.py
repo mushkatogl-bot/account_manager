@@ -50,6 +50,9 @@ class Account(db.Model):
     sold_date = db.Column(db.DateTime, nullable=True)
     sold_price = db.Column(db.Float, nullable=True)
 
+    # --- Бухгалтерия: стоимость номера ---
+    cost_amount = db.Column(db.Float, nullable=True)  # если NULL → берём $2
+
     # --- Pending TOP ---
     pending_since = db.Column(db.DateTime, nullable=True)
 
@@ -164,6 +167,10 @@ class Account(db.Model):
     def creator_username(self):
         """Имя пользователя, создавшего аккаунт"""
         return self.creator.username if self.creator else "—"
+    @property
+    def effective_cost(self):
+        """Стоимость номера: cost_amount или $2 по умолчанию"""
+        return self.cost_amount if self.cost_amount is not None else 2.0
 
 
 # ============================================================
@@ -211,3 +218,20 @@ class Log(db.Model):
 
     def __repr__(self):
         return f"<Log {self.username} {self.action}>"
+
+    # ============================================================
+    # РАСХОДЫ (вручную вносимые)
+    # ============================================================
+class Expense(db.Model):
+        __tablename__ = "expenses"
+
+        id = db.Column(db.Integer, primary_key=True)
+        date = db.Column(db.Date, nullable=False)  # дата расхода
+        category = db.Column(db.String(32), nullable=False)  # email / proxy / other
+        amount = db.Column(db.Float, nullable=False)  # сумма в $ (положительная)
+        comment = db.Column(db.Text, nullable=True)  # описание
+        created_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+        created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+        def __repr__(self):
+            return f"<Expense {self.category} ${self.amount}>"

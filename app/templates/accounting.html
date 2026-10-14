@@ -1,0 +1,376 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h3 class="mb-3">💰 Бухгалтерия</h3>
+
+<!-- ============ ЗА ВСЁ ВРЕМЯ ============ -->
+<h6 class="text-muted mt-3 mb-2">📊 ЗА ВСЁ ВРЕМЯ</h6>
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body py-2">
+                <small class="text-muted">🎮 Номера ({{ total_accounts }} шт.)</small>
+                <div class="fs-5 fw-bold text-danger">−${{ '%.2f'|format(total_cost_accounts) }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body py-2">
+                <small class="text-muted">💸 Всего расходов</small>
+                <div class="fs-5 fw-bold text-danger">−${{ '%.2f'|format(total_expenses) }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body py-2">
+                <small class="text-muted">💰 Доходы ({{ sold_count }} продаж)</small>
+                <div class="fs-5 fw-bold text-success">+${{ '%.2f'|format(total_income) }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body py-2">
+                <small class="text-muted">📊 Прибыль</small>
+                <div class="fs-5 fw-bold {% if total_profit >= 0 %}text-success{% else %}text-danger{% endif %}">
+                    {% if total_profit >= 0 %}+{% endif %}${{ '%.2f'|format(total_profit) }}
+                    <small class="text-muted">({{ '%.1f'|format(total_margin) }}%)</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============ ЭТОТ МЕСЯЦ ============ -->
+<div class="d-flex justify-content-between align-items-center mb-2">
+    <h6 class="text-muted m-0">📅 МЕСЯЦ</h6>
+    <form method="get" class="d-flex gap-2">
+        <select name="month" class="form-select form-select-sm" onchange="this.form.submit()" style="width:200px;">
+            {% for m in months_table %}
+                {% set mstr = '%04d-%02d'|format(m.year, m.month) %}
+                <option value="{{ mstr }}" {% if mstr == selected_month_str %}selected{% endif %}>
+                    {{ m.label }}
+                </option>
+            {% endfor %}
+        </select>
+    </form>
+</div>
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body py-2">
+                <small class="text-muted">🎮 Номера ({{ month_data.accounts_count }} шт.)</small>
+                <div class="fs-5 fw-bold text-danger">−${{ '%.2f'|format(month_data.cost_accounts) }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body py-2">
+                <small class="text-muted">💸 Расходы</small>
+                <div class="fs-5 fw-bold text-danger">−${{ '%.2f'|format(month_data.total_expenses) }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body py-2">
+                <small class="text-muted">💰 Доходы ({{ month_data.sold_count }} продаж)</small>
+                <div class="fs-5 fw-bold text-success">+${{ '%.2f'|format(month_data.income) }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body py-2">
+                <small class="text-muted">📊 Прибыль</small>
+                <div class="fs-5 fw-bold {% if month_data.profit >= 0 %}text-success{% else %}text-danger{% endif %}">
+                    {% if month_data.profit >= 0 %}+{% endif %}${{ '%.2f'|format(month_data.profit) }}
+                    <small class="text-muted">({{ '%.1f'|format(month_data.margin) }}%)</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============ РАЗБИВКА РАСХОДОВ ============ -->
+<h6 class="text-muted mt-3 mb-2">📦 РАЗБИВКА РАСХОДОВ (за всё время)</h6>
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body py-2">
+                <small class="text-muted">🎮 Номера</small>
+                <div class="fs-6 fw-bold text-danger">−${{ '%.2f'|format(total_cost_accounts) }}</div>
+                <small class="text-muted">{{ total_accounts }} шт. (авто)</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body py-2">
+                <small class="text-muted">📧 Почты</small>
+                <div class="fs-6 fw-bold text-danger">−${{ '%.2f'|format(total_cost_email) }}</div>
+                <small class="text-muted">{{ expenses_list|selectattr('category','equalto','email')|list|length }} записей</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body py-2">
+                <small class="text-muted">🌐 Прокси</small>
+                <div class="fs-6 fw-bold text-danger">−${{ '%.2f'|format(total_cost_proxy) }}</div>
+                <small class="text-muted">{{ expenses_list|selectattr('category','equalto','proxy')|list|length }} записей</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body py-2">
+                <small class="text-muted">📦 Прочее</small>
+                <div class="fs-6 fw-bold text-danger">−${{ '%.2f'|format(total_cost_other) }}</div>
+                <small class="text-muted">{{ expenses_list|selectattr('category','equalto','other')|list|length }} записей</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============ ВКЛАДКИ ============ -->
+<ul class="nav nav-tabs mb-3" id="accountingTabs">
+    <li class="nav-item">
+        <a class="nav-link active" data-bs-toggle="tab" href="#tab-months">📅 По месяцам</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="tab" href="#tab-expenses">💸 Расходы</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="tab" href="#tab-income">💰 Доходы</a>
+    </li>
+</ul>
+
+<div class="tab-content">
+    <!-- ПО МЕСЯЦАМ -->
+    <div class="tab-pane fade show active" id="tab-months">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Месяц</th>
+                        <th class="text-end">🎮 Номера</th>
+                        <th class="text-end">📧 Почты</th>
+                        <th class="text-end">🌐 Прокси</th>
+                        <th class="text-end">📦 Прочее</th>
+                        <th class="text-end">💸 Расход</th>
+                        <th class="text-end">💰 Доход</th>
+                        <th class="text-end">📊 Прибыль</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for m in months_table %}
+                    <tr>
+                        <td>{{ m.label }}</td>
+                        <td class="text-end text-danger">−${{ '%.2f'|format(m.cost_accounts) }}</td>
+                        <td class="text-end text-danger">−${{ '%.2f'|format(m.cost_email) }}</td>
+                        <td class="text-end text-danger">−${{ '%.2f'|format(m.cost_proxy) }}</td>
+                        <td class="text-end text-danger">−${{ '%.2f'|format(m.cost_other) }}</td>
+                        <td class="text-end text-danger fw-bold">−${{ '%.2f'|format(m.total_expenses) }}</td>
+                        <td class="text-end text-success">+${{ '%.2f'|format(m.income) }}</td>
+                        <td class="text-end fw-bold {% if m.profit >= 0 %}text-success{% else %}text-danger{% endif %}">
+                            {% if m.profit >= 0 %}+{% endif %}${{ '%.2f'|format(m.profit) }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- РАСХОДЫ -->
+    <div class="tab-pane fade" id="tab-expenses">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="text-muted small">Всего: {{ expenses_list|length }} записей</span>
+            <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addExpenseModal">
+                + Добавить расход
+            </button>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Дата</th>
+                        <th>Категория</th>
+                        <th class="text-end">Сумма</th>
+                        <th>Комментарий</th>
+                        <th style="width:100px;"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if expenses_list %}
+                        {% for e in expenses_list %}
+                        <tr>
+                            <td>{{ e.date.strftime('%d.%m.%Y') }}</td>
+                            <td>
+                                {% if e.category == 'email' %}📧 Почты
+                                {% elif e.category == 'proxy' %}🌐 Прокси
+                                {% else %}📦 Прочее{% endif %}
+                            </td>
+                            <td class="text-end text-danger">−${{ '%.2f'|format(e.amount) }}</td>
+                            <td><small>{{ e.comment or '—' }}</small></td>
+                            <td class="text-center">
+                                <button class="btn btn-sm btn-outline-primary"
+                                        onclick="editExpense({{ e.id }})" title="Редактировать">✏️</button>
+                                <form method="post" action="{{ url_for('accounting.expense_delete', exp_id=e.id) }}"
+                                      class="d-inline"
+                                      onsubmit="return confirm('Удалить расход?');">
+                                    <button class="btn btn-sm btn-outline-danger" title="Удалить">🗑</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr><td colspan="5" class="text-center text-muted py-3">Пока нет расходов</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ДОХОДЫ -->
+    <div class="tab-pane fade" id="tab-income">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Дата продажи</th>
+                        <th>Email</th>
+                        <th class="text-end">Цена</th>
+                        <th style="width:60px;"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if sold_accounts_list %}
+                        {% for a in sold_accounts_list %}
+                        <tr {% if not a.sold_price %}class="table-warning"{% endif %}>
+                            <td>{{ a.sold_date.strftime('%d.%m.%Y %H:%M') if a.sold_date else '—' }}</td>
+                            <td>{{ a.email }}</td>
+                            <td class="text-end">
+                                {% if a.sold_price %}
+                                    <span class="text-success fw-bold">+${{ '%.2f'|format(a.sold_price) }}</span>
+                                {% else %}
+                                    <span class="text-warning">⚠️ не указана</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                <a href="{{ url_for('routes.index') }}" class="btn btn-sm btn-outline-secondary">→</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr><td colspan="4" class="text-center text-muted py-3">Пока нет продаж</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ============ МОДАЛКА ДОБАВЛЕНИЯ РАСХОДА ============ -->
+<div class="modal fade" id="addExpenseModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="{{ url_for('accounting.expense_add') }}">
+        <div class="modal-header">
+          <h5 class="modal-title">Добавить расход</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Дата <span class="text-danger">*</span></label>
+            <input type="date" name="date" class="form-control" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Категория <span class="text-danger">*</span></label>
+            <select name="category" class="form-select" required>
+              <option value="email">📧 Почты</option>
+              <option value="proxy">🌐 Прокси</option>
+              <option value="other">📦 Прочее</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Сумма ($) <span class="text-danger">*</span></label>
+            <input type="number" step="0.01" min="0.01" name="amount" class="form-control" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Комментарий</label>
+            <textarea name="comment" class="form-control" rows="2"
+                      placeholder="Например: прокси за неделю 7-14 октября"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+          <button type="submit" class="btn btn-success">Добавить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ============ МОДАЛКА РЕДАКТИРОВАНИЯ РАСХОДА ============ -->
+<div class="modal fade" id="editExpenseModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" id="editExpenseForm">
+        <div class="modal-header">
+          <h5 class="modal-title">Редактировать расход</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Дата <span class="text-danger">*</span></label>
+            <input type="date" name="date" id="ee_date" class="form-control" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Категория <span class="text-danger">*</span></label>
+            <select name="category" id="ee_category" class="form-select" required>
+              <option value="email">📧 Почты</option>
+              <option value="proxy">🌐 Прокси</option>
+              <option value="other">📦 Прочее</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Сумма ($) <span class="text-danger">*</span></label>
+            <input type="number" step="0.01" min="0.01" name="amount" id="ee_amount" class="form-control" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Комментарий</label>
+            <textarea name="comment" id="ee_comment" class="form-control" rows="2"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+          <button type="submit" class="btn btn-primary">Сохранить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+async function editExpense(id) {
+    const res = await fetch(`/expenses/${id}/json`);
+    if (!res.ok) { alert("Не удалось загрузить расход"); return; }
+    const data = await res.json();
+
+    document.getElementById("editExpenseForm").action = `/expenses/${id}/edit`;
+    document.getElementById("ee_date").value = data.date;
+    document.getElementById("ee_category").value = data.category;
+    document.getElementById("ee_amount").value = data.amount;
+    document.getElementById("ee_comment").value = data.comment;
+
+    const modal = new bootstrap.Modal(document.getElementById("editExpenseModal"));
+    modal.show();
+}
+</script>
+
+{% endblock %}
