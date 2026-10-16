@@ -12,7 +12,9 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(64), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
-    role = db.Column(db.String(16), default="user")  # "user" или "admin"
+    role = db.Column(db.String(16), default="user")
+    can_view_others = db.Column(db.Boolean, default=False)  # видеть чужие аккаунты
+    can_edit_others = db.Column(db.Boolean, default=False)  # редактировать чужие
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
@@ -66,8 +68,12 @@ class Account(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # --- Связи ---
-    unsubscribes = db.relationship("Unsubscribe", backref="account",
-                                   cascade="all, delete-orphan", lazy=True)
+    unsubscribes = db.relationship(
+        "Unsubscribe",
+        backref="account",
+        cascade="all, delete-orphan",
+        lazy=True,
+    )
 
     def __repr__(self):
         return f"<Account {self.email} [{self.status}]>"
@@ -93,7 +99,7 @@ class Account(db.Model):
         if self.status in ("Pending TOP", "TOP online"):
             return "for_sale"
 
-        # Всё остальное — в работе (online, Gesperrt, unloc online)
+        # Всё остальное — в работе (online, Gesperrt, unloc online, online Loshung)
         return "working"
 
     @property
@@ -162,11 +168,13 @@ class Account(db.Model):
             return "ответили"
         if self.support_sent:
             return "отправлено"
+        return None
 
     @property
     def creator_username(self):
         """Имя пользователя, создавшего аккаунт"""
         return self.creator.username if self.creator else "—"
+
     @property
     def effective_cost(self):
         """Стоимость номера: cost_amount или $2 по умолчанию"""
@@ -195,8 +203,10 @@ class Unsubscribe(db.Model):
         if self.time:
             try:
                 h, m = self.time.split(":")
-                return datetime(self.date.year, self.date.month, self.date.day,
-                                int(h), int(m))
+                return datetime(
+                    self.date.year, self.date.month, self.date.day,
+                    int(h), int(m),
+                )
             except (ValueError, AttributeError):
                 pass
         return datetime(self.date.year, self.date.month, self.date.day)
@@ -219,19 +229,20 @@ class Log(db.Model):
     def __repr__(self):
         return f"<Log {self.username} {self.action}>"
 
-    # ============================================================
-    # РАСХОДЫ (вручную вносимые)
-    # ============================================================
+
+# ============================================================
+# РАСХОДЫ (вручную вносимые)
+# ============================================================
 class Expense(db.Model):
-        __tablename__ = "expenses"
+    __tablename__ = "expenses"
 
-        id = db.Column(db.Integer, primary_key=True)
-        date = db.Column(db.Date, nullable=False)  # дата расхода
-        category = db.Column(db.String(32), nullable=False)  # email / proxy / other
-        amount = db.Column(db.Float, nullable=False)  # сумма в $ (положительная)
-        comment = db.Column(db.Text, nullable=True)  # описание
-        created_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
-        created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.Date, nullable=False)              # дата расхода
+    category = db.Column(db.String(32), nullable=False)    # email / proxy / other
+    amount = db.Column(db.Float, nullable=False)           # сумма в $ (положительная)
+    comment = db.Column(db.Text, nullable=True)            # описание
+    created_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-        def __repr__(self):
-            return f"<Expense {self.category} ${self.amount}>"
+    def __repr__(self):
+        return f"<Expense {self.category} ${self.amount}>"

@@ -134,3 +134,31 @@ def user_delete(user_id):
 
     flash(f"Пользователь {username} удалён", "warning")
     return redirect(url_for("admin.index"))
+# ============================================================
+# СМЕНА ПРАВ ПОЛЬЗОВАТЕЛЯ
+# ============================================================
+@bp.route("/users/<int:user_id>/permissions", methods=["POST"])
+@admin_required
+def user_permissions(user_id):
+    u = User.query.get_or_404(user_id)
+
+    if u.role == "admin":
+        flash("У админа всегда полные права", "warning")
+        return redirect(url_for("admin.index"))
+
+    u.can_view_others = request.form.get("can_view_others") == "on"
+    u.can_edit_others = request.form.get("can_edit_others") == "on"
+    db.session.commit()
+
+    log = Log(
+        user_id=current_user.id,
+        username=current_user.username,
+        action="admin_change_permissions",
+        target=u.username,
+        details=f"view={u.can_view_others}, edit={u.can_edit_others}",
+    )
+    db.session.add(log)
+    db.session.commit()
+
+    flash(f"Права {u.username} обновлены", "success")
+    return redirect(url_for("admin.index"))

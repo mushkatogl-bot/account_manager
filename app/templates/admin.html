@@ -17,6 +17,7 @@
                 <th>Логин</th>
                 <th style="width:120px;">Роль</th>
                 <th style="width:180px;">Создан</th>
+                <th style="width:240px;">Права</th>
                 <th style="width:280px;">Действия</th>
             </tr>
         </thead>
@@ -41,6 +42,26 @@
                     <small class="text-muted">
                         {{ u.created_at.strftime('%d.%m.%Y %H:%M') if u.created_at else '—' }}
                     </small>
+                </td>
+                                <td>
+                    {% if u.role == 'admin' %}
+                        <span class="badge bg-danger">Полный доступ</span>
+                    {% else %}
+                        <form method="post" action="{{ url_for('admin.user_permissions', user_id=u.id) }}"
+                              class="d-flex gap-2 align-items-center">
+                            <div class="form-check form-check-inline m-0">
+                                <input class="form-check-input" type="checkbox" name="can_view_others"
+                                       id="cv_{{ u.id }}" {% if u.can_view_others %}checked{% endif %}>
+                                <label class="form-check-label small" for="cv_{{ u.id }}">👁 Видеть</label>
+                            </div>
+                            <div class="form-check form-check-inline m-0">
+                                <input class="form-check-input" type="checkbox" name="can_edit_others"
+                                       id="ce_{{ u.id }}" {% if u.can_edit_others %}checked{% endif %}>
+                                <label class="form-check-label small" for="ce_{{ u.id }}">✏️ Редакт.</label>
+                            </div>
+                            <button type="submit" class="btn btn-sm btn-outline-success">✓</button>
+                        </form>
+                    {% endif %}
                 </td>
                 <td>
                     <!-- Смена пароля -->

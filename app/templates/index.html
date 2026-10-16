@@ -11,10 +11,23 @@
 <!-- Поиск и сортировка -->
 <form class="row g-2 mb-3" method="get">
     <input type="hidden" name="tab" value="{{ tab }}">
-    <div class="col-md-6">
+    <div class="col-md-4">
         <input type="text" name="q" value="{{ q }}" class="form-control"
                placeholder="Поиск по почте или нику...">
     </div>
+    {% if can_view_others %}
+    <div class="col-md-3">
+        <select name="user_filter" class="form-select" onchange="this.form.submit()">
+            <option value="" {% if not user_filter %}selected{% endif %}>👥 Все пользователи</option>
+            <option value="mine" {% if user_filter == 'mine' %}selected{% endif %}>🔒 Только мои</option>
+            {% for u in users_for_filter %}
+                <option value="{{ u.id }}" {% if user_filter == u.id|string %}selected{% endif %}>
+                    {{ u.username }}
+                </option>
+            {% endfor %}
+        </select>
+    </div>
+    {% endif %}
     <div class="col-md-3">
         <select name="sort" class="form-select" onchange="this.form.submit()">
             <option value="reg_date" {% if sort_by == 'reg_date' %}selected{% endif %}>
@@ -25,7 +38,7 @@
             </option>
         </select>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-2">
         <button class="btn btn-primary w-100">Найти</button>
     </div>
 </form>
@@ -106,6 +119,8 @@
                                     ⚠️ ОСТАВЬТЕ ОТЗЫВ
                                 </span>
                             {% endif %}
+                        {% elif a.status == 'online Loshung' %}
+                            <span class="badge" style="background:#20c997; color:#000;">online Loshung</span>
                         {% elif a.status == 'Anmelden' %}
                             <span class="badge bg-secondary">Anmelden</span>
                         {% elif a.status == 'ALL gesperrt' %}
@@ -236,6 +251,7 @@
                 <option value="Gesperrt">Gesperrt</option>
                 <option value="TOP online">TOP online</option>
                 <option value="unloc online">unloc online</option>
+                <option value="online Loshung">online Loshung</option>
                 <option value="Pending TOP">Pending TOP</option>
                 <option value="Anmelden">Anmelden</option>
                 <option value="ALL gesperrt">ALL gesperrt</option>
@@ -304,6 +320,7 @@
                 <option value="Gesperrt">Gesperrt</option>
                 <option value="TOP online">TOP online</option>
                 <option value="unloc online">unloc online</option>
+                <option value="online Loshung">online Loshung</option>
                 <option value="Pending TOP">Pending TOP</option>
                 <option value="Anmelden">Anmelden</option>
                 <option value="ALL gesperrt">ALL gesperrt</option>
@@ -409,9 +426,14 @@
             </div>
           </div>
         </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-          <button type="submit" class="btn btn-primary">Сохранить</button>
+        <div class="modal-footer d-flex justify-content-between">
+          <button type="button" class="btn btn-danger" onclick="deleteAccount()">
+            🗑 Удалить аккаунт
+          </button>
+          <div>
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+            <button type="submit" class="btn btn-primary">Сохранить</button>
+          </div>
         </div>
       </form>
     </div>
@@ -585,6 +607,27 @@ function deleteCookies() {
     const form = document.createElement("form");
     form.method = "POST";
     form.action = `/account/${id}/cookies/delete`;
+    document.body.appendChild(form);
+    form.submit();
+}
+
+
+function deleteAccount() {
+    const id = document.getElementById("editForm").dataset.accId;
+    if (!id) return;
+    const ok = confirm(
+        "⚠️⚠️⚠️ УДАЛИТЬ АККАУНТ? ⚠️⚠️⚠️\n\n" +
+        "ВСЕ ДАННЫЕ АККАУНТА БУДУТ УДАЛЕНЫ БЕЗВОЗВРАТНО:\n" +
+        "куки, отписки, комментарии, история продажи.\n\n" +
+        "Расход по этому аккаунту тоже перестанет учитываться.\n\n" +
+        "ВЫ УВЕРЕНЫ?\n\n" +
+        "Нажмите ОК — чтобы удалить, Отмена — оставить."
+    );
+    if (!ok) return;
+
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = `/account/${id}/delete`;
     document.body.appendChild(form);
     form.submit();
 }

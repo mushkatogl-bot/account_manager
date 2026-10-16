@@ -17,14 +17,37 @@ def index():
     tab = request.args.get("tab", "working")
     q = request.args.get("q", "").strip()
     sort_by = request.args.get("sort", "reg_date")
+    user_filter = request.args.get("user_filter", "").strip()  # id юзера или пусто
 
+    # --- Базовый запрос ---
     query = Account.query
 
+    # --- Права доступа ---
+    is_admin = (current_user.role == "admin")
+    can_view_others = is_admin or current_user.can_view_others
+    can_edit_others = is_admin or current_user.can_edit_others
+
+    # Если не может видеть чужие — только свои
+    if not can_view_others:
+        query = query.filter(Account.created_by == current_user.id)
+    elif user_filter:
+        # Фильтр по конкретному юзеру
+        if user_filter == "mine":
+            query = query.filter(Account.created_by == current_user.id)
+        else:
+            try:
+                uid = int(user_filter)
+                query = query.filter(Account.created_by == uid)
+            except ValueError:
+                pass
+
+    # --- Поиск ---
     if q:
         query = query.filter(
             (Account.email.ilike(f"%{q}%")) | (Account.nick.ilike(f"%{q}%"))
         )
 
+    # --- Сортировка ---
     if sort_by == "status":
         query = query.order_by(Account.status.asc())
     else:
@@ -32,17 +55,27 @@ def index():
 
     all_accounts = query.all()
 
-    # Разбиваем на 4 вкладки
+    # --- Разбиваем на 4 вкладки ---
     for_sale = [a for a in all_accounts if a.is_for_sale_tab]
     working  = [a for a in all_accounts if a.is_working_tab]
     sold     = [a for a in all_accounts if a.is_sold_tab]
     invalid  = [a for a in all_accounts if a.is_invalid_tab]
+
+    # --- Список юзеров для фильтра (только если может видеть чужие) ---
+    users_for_filter = []
+    if can_view_others:
+        from app.models import User
+        users_for_filter = User.query.order_by(User.username.asc()).all()
 
     return render_template(
         "index.html",
         tab=tab,
         q=q,
         sort_by=sort_by,
+        user_filter=user_filter,
+        users_for_filter=users_for_filter,
+        can_view_others=can_view_others,
+        can_edit_others=can_edit_others,
         for_sale=for_sale,
         working=working,
         sold=sold,
@@ -145,8 +178,10 @@ def account_json(acc_id):
         "support_sent": a.support_sent,
         "support_status": a.support_status or "",
         "support_text": a.support_text or "",
-        "comment": a.comment or "",
+                "comment": a.comment or "",
         "cost_amount": a.cost_amount if a.cost_amount is not None else "",
+        "created_by": a.created_by or 0,
+        "creator_username": a.creator_username,
     }
 
 
@@ -157,6 +192,13 @@ def account_json(acc_id):
 @login_required
 def account_edit(acc_id):
     a = Account.query.get_or_404(acc_id)
+
+    # Проверка прав
+    is_admin = (current_user.role == "admin")
+    can_edit_others = is_admin or current_user.can_edit_others
+    if a.created_by != current_user.id and not can_edit_others:
+        flash("Нет прав редактировать этот аккаунт", "danger")
+        return redirect(url_for("routes.index"))
 
     old_status = a.status
 
@@ -408,3 +450,37 @@ def logs():
         action_filter=action_filter,
         all_actions=all_actions,
     )
+# ============================================================
+# УДАЛЕНИЕ АККАУНТА
+# ============================================================
+@bp.route("/account/<int:acc_id>/delete", methods=["POST"])
+@login_required
+def account_delete(acc_id):
+    a = Account.query.get_or_404(acc_id)
+
+    is_admin = (current_user.role == "admin")
+    can_edit_others = is_admin or current_user.can_edit_others
+
+    if a.created_by != current_user.id and not can_edit_others:
+        flash("Нет прав удалить этот аккаунт", "danger")
+        return redirect(url_for("routes.index"))
+
+    email = a.email
+
+    # Жёсткое удаление (каскадно удалит unsubscribes благодаря relationship)
+    db.session.delete(a)
+    db.session.commit()
+
+    # Лог
+    log = Log(
+        user_id=current_user.id,
+        username=current_user.username,
+        action="delete_account",
+        target=email,
+        details="Аккаунт удалён",
+    )
+    db.session.add(log)
+    db.session.commit()
+
+    flash(f"Аккаунт {email} удалён", "warning")
+    return redirect(url_for("routes.index"))
