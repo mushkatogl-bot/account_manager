@@ -17,7 +17,7 @@ def index():
     tab = request.args.get("tab", "working")
     q = request.args.get("q", "").strip()
     sort_by = request.args.get("sort", "reg_date")
-    user_filter = request.args.get("user_filter", "").strip()  # id юзера или пусто
+    user_filter = request.args.get("user_filter", "mine").strip()  # id юзера или пусто
 
     # --- Базовый запрос ---
     query = Account.query
