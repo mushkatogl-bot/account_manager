@@ -128,6 +128,11 @@ def account_add():
         created_by=current_user.id,
     )
 
+    # --- Support (новые поля) ---
+    a.screens_sent = request.form.get("screens_sent") == "on"
+    a.payment_sent = request.form.get("payment_sent") == "on"
+    a.is_on_pc = request.form.get("is_on_pc") == "on"
+
     if status == "SALE":
         a.sold = True
         a.sold_date = datetime.utcnow()
@@ -175,10 +180,12 @@ def account_json(acc_id):
         "sold_date": a.sold_date.strftime("%Y-%m-%d %H:%M") if a.sold_date else "",
         "has_cookies": bool(a.cookies_text),
         "cookies_text": a.cookies_text or "",
-        "support_sent": a.support_sent,
-        "support_status": a.support_status or "",
+        "support_date": a.support_date.strftime("%Y-%m-%d") if a.support_date else "",
         "support_text": a.support_text or "",
-                "comment": a.comment or "",
+        "is_on_pc": a.is_on_pc,
+        "screens_sent": a.screens_sent,
+        "payment_sent": a.payment_sent,
+        "comment": a.comment or "",
         "cost_amount": a.cost_amount if a.cost_amount is not None else "",
         "created_by": a.created_by or 0,
         "creator_username": a.creator_username,
@@ -233,10 +240,20 @@ def account_edit(acc_id):
         a.sold = False
         a.sold_date = None
 
-    # --- Support ---
-    a.support_sent = request.form.get("support_sent") == "on"
-    a.support_status = request.form.get("support_status") or None
+    # --- Support (новые поля) ---
+    support_date_str = request.form.get("support_date", "").strip()
+    if support_date_str:
+        try:
+            a.support_date = datetime.strptime(support_date_str, "%Y-%m-%d").date()
+        except ValueError:
+            a.support_date = None
+    else:
+        a.support_date = None
+
     a.support_text = request.form.get("support_text", "").strip() or None
+    a.is_on_pc = request.form.get("is_on_pc") == "on"
+    a.screens_sent = request.form.get("screens_sent") == "on"
+    a.payment_sent = request.form.get("payment_sent") == "on"
 
     # --- Куки ---
     if "cookies_text" in request.form:
@@ -450,6 +467,8 @@ def logs():
         action_filter=action_filter,
         all_actions=all_actions,
     )
+
+
 # ============================================================
 # УДАЛЕНИЕ АККАУНТА
 # ============================================================

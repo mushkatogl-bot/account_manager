@@ -42,9 +42,11 @@ class Account(db.Model):
     cookies_text = db.Column(db.Text, nullable=True)
 
     # --- Support ---
-    support_sent = db.Column(db.Boolean, default=False)
-    support_status = db.Column(db.String(16), nullable=True)  # "pending" / "answered"
-    support_text = db.Column(db.Text, nullable=True)
+    support_date = db.Column(db.Date, nullable=True)            # дата отправки письма
+    support_text = db.Column(db.Text, nullable=True)            # текст письма
+    is_on_pc = db.Column(db.Boolean, default=False)             # аккаунт залогинен на ПК
+    screens_sent = db.Column(db.Boolean, default=False)         # скрины отправлены
+    payment_sent = db.Column(db.Boolean, default=False)         # оплата отправлена
 
     # --- Продажа ---
     for_sale = db.Column(db.Boolean, default=False)
@@ -159,18 +161,6 @@ class Account(db.Model):
         return len(self.unsubscribes) > 0
 
     @property
-    def support_status_display(self):
-        if not self.support_sent and not self.support_status:
-            return None
-        if self.support_status == "pending":
-            return "ожидание"
-        if self.support_status == "answered":
-            return "ответили"
-        if self.support_sent:
-            return "отправлено"
-        return None
-
-    @property
     def creator_username(self):
         """Имя пользователя, создавшего аккаунт"""
         return self.creator.username if self.creator else "—"
@@ -179,6 +169,11 @@ class Account(db.Model):
     def effective_cost(self):
         """Стоимость номера: cost_amount или $2 по умолчанию"""
         return self.cost_amount if self.cost_amount is not None else 2.0
+
+    @property
+    def has_support_letter(self):
+        """Письмо в ТП отправлено (есть текст + дата)"""
+        return bool(self.support_text and self.support_date)
 
 
 # ============================================================
