@@ -100,7 +100,12 @@
                         {{ a.reg_date.strftime('%d.%m.%Y') }}
                         {% if a.reg_time %}<br><small class="text-muted">{{ a.reg_time }}</small>{% endif %}
                     </td>
-                    <td>{{ a.email }}</td>
+                    <td>
+                        {{ a.email }}
+                        {% if a.device_android %}<span title="Android" style="font-size:14px;">🤖</span>{% endif %}
+                        {% if a.device_iphone11 %}<span title="iPhone 11" style="font-size:14px;">📱11</span>{% endif %}
+                        {% if a.device_iphone15 %}<span title="iPhone 15" style="font-size:14px;">📱15</span>{% endif %}
+                    </td>
                     <td>
                         {% if a.status == 'TOP online' %}
                             <span class="badge" style="background:#c8a2ff; color:#2a0066;">TOP online</span>
@@ -234,11 +239,30 @@
               <label class="form-label">Телефон</label>
               <input type="text" name="phone" class="form-control">
             </div>
-              <div class="col-md-6">
+            <div class="col-md-6">
               <label class="form-label">Цена за номер ($)</label>
               <input type="number" step="0.01" min="0" name="cost_amount"
                      class="form-control" placeholder="По умолчанию: 2.00">
             </div>
+
+            <!-- УСТРОЙСТВО (только один раз!) -->
+            <div class="col-12">
+              <hr>
+              <label class="form-label">Почта</label>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" name="device_android" id="add_device_android">
+                <label class="form-check-label" for="add_device_android">🤖 Android</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" name="device_iphone11" id="add_device_iphone11">
+                <label class="form-check-label" for="add_device_iphone11">📱 iPhone 11</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" name="device_iphone15" id="add_device_iphone15">
+                <label class="form-check-label" for="add_device_iphone15">📱 iPhone 15</label>
+              </div>
+            </div>
+
             <div class="col-md-6">
               <label class="form-label">Статус</label>
               <select name="status" class="form-select">
@@ -303,7 +327,7 @@
               <label class="form-label">Телефон</label>
               <input type="text" name="phone" id="e_phone" class="form-control">
             </div>
-              <div class="col-md-6">
+            <div class="col-md-6">
               <label class="form-label">Цена за номер ($)</label>
               <input type="number" step="0.01" min="0" name="cost_amount" id="e_cost_amount"
                      class="form-control" placeholder="По умолчанию: 2.00">
@@ -381,6 +405,24 @@
                 <label class="form-check-label" for="e_is_on_pc">
                   💻 на ПК
                 </label>
+              </div>
+            </div>
+
+            <!-- УСТРОЙСТВО (только один раз!) -->
+            <div class="col-12">
+              <hr>
+              <label class="form-label">Почта</label>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" name="device_android" id="e_device_android">
+                <label class="form-check-label" for="e_device_android">🤖 Android</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" name="device_iphone11" id="e_device_iphone11">
+                <label class="form-check-label" for="e_device_iphone11">📱 iPhone 11</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" name="device_iphone15" id="e_device_iphone15">
+                <label class="form-check-label" for="e_device_iphone15">📱 iPhone 15</label>
               </div>
             </div>
 
@@ -590,6 +632,10 @@ async function openAccount(id) {
     document.getElementById("e_screens_sent").checked = data.screens_sent;
     document.getElementById("e_payment_sent").checked = data.payment_sent;
     document.getElementById("e_is_on_pc").checked = data.is_on_pc;
+
+    document.getElementById("e_device_android").checked = data.device_android;
+    document.getElementById("e_device_iphone11").checked = data.device_iphone11;
+    document.getElementById("e_device_iphone15").checked = data.device_iphone15;
 
     document.getElementById("e_for_sale").checked = data.for_sale;
     document.getElementById("e_sold_price").value = data.sold_price;
