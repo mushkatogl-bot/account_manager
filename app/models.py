@@ -48,6 +48,11 @@ class Account(db.Model):
     screens_sent = db.Column(db.Boolean, default=False)         # скрины отправлены
     payment_sent = db.Column(db.Boolean, default=False)         # оплата отправлена
 
+    # --- Устройство (на чём зареган почтовый ящик) ---
+    device_android = db.Column(db.Boolean, default=False)
+    device_iphone11 = db.Column(db.Boolean, default=False)
+    device_iphone15 = db.Column(db.Boolean, default=False)
+
     # --- Продажа ---
     for_sale = db.Column(db.Boolean, default=False)
     sold = db.Column(db.Boolean, default=False)
