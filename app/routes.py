@@ -133,6 +133,10 @@ def account_add():
     a.payment_sent = request.form.get("payment_sent") == "on"
     a.is_on_pc = request.form.get("is_on_pc") == "on"
 
+    a.device_android = request.form.get("device_android") == "on"
+    a.device_iphone11 = request.form.get("device_iphone11") == "on"
+    a.device_iphone15 = request.form.get("device_iphone15") == "on"
+
     if status == "SALE":
         a.sold = True
         a.sold_date = datetime.utcnow()
@@ -185,6 +189,9 @@ def account_json(acc_id):
         "is_on_pc": a.is_on_pc,
         "screens_sent": a.screens_sent,
         "payment_sent": a.payment_sent,
+        "device_android": a.device_android,
+        "device_iphone11": a.device_iphone11,
+        "device_iphone15": a.device_iphone15,
         "comment": a.comment or "",
         "cost_amount": a.cost_amount if a.cost_amount is not None else "",
         "created_by": a.created_by or 0,
@@ -254,6 +261,11 @@ def account_edit(acc_id):
     a.is_on_pc = request.form.get("is_on_pc") == "on"
     a.screens_sent = request.form.get("screens_sent") == "on"
     a.payment_sent = request.form.get("payment_sent") == "on"
+
+    # --- Устройство ---
+    a.device_android = request.form.get("device_android") == "on"
+    a.device_iphone11 = request.form.get("device_iphone11") == "on"
+    a.device_iphone15 = request.form.get("device_iphone15") == "on"
 
     # --- Куки ---
     if "cookies_text" in request.form:
