@@ -803,12 +803,17 @@ def export_excel():
         ws.cell(row=row_idx, column=col, value=days_between)
 
     # Ширина колонок
-    widths = [15, 30, 15, 12, 15, 8, 40, 35, 12]
-    for _ in range(5):
-        widths += [15, 10, 40, 20, 15]
-    widths += [15]
-    for col, width in enumerate(widths, 1):
-        ws.column_dimensions[chr(64 + col)].width = width
+        # Ширина колонок
+        from openpyxl.utils import get_column_letter
+
+        widths = [15, 30, 15, 12, 15, 8, 40, 35, 12]
+        for _ in range(5):
+            widths += [15, 10, 40, 20, 15]
+        widths += [15]
+
+        for col, width in enumerate(widths, 1):
+            letter = get_column_letter(col)  # A, B, ..., Z, AA, AB, ... AZ, BA...
+            ws.column_dimensions[letter].width = width
 
     # --- Отправка файла ---
     buf = BytesIO()
