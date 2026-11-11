@@ -3,9 +3,14 @@
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h3 class="m-0">Аккаунты</h3>
-    <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addModal">
-        + Добавить аккаунт
-    </button>
+    <div>
+        <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#exportModal">
+            📊 Выгрузить статистику
+        </button>
+        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addModal">
+            + Добавить аккаунт
+        </button>
+    </div>
 </div>
 
 <!-- Поиск и сортировка -->
@@ -197,6 +202,14 @@
     <div class="tooltip-row">
         <span class="tooltip-label">📨 Отписка:</span>
         <span id="tt_unsubs" class="tooltip-value"></span>
+    </div>
+        <div class="tooltip-row" id="tt_support_result_row" style="display:none;">
+        <span class="tooltip-label">⚠️ ТП:</span>
+        <span id="tt_support_result" class="tooltip-value"></span>
+    </div>
+    <div class="tooltip-row" id="tt_history_row" style="display:none;">
+        <span class="tooltip-label">📜 История:</span>
+        <div id="tt_history" class="tooltip-value" style="font-size:11px;"></div>
     </div>
 </div>
 
@@ -426,6 +439,40 @@
               </div>
             </div>
 
+                        <!-- SUPPORT ACTION -->
+            <div class="col-12">
+              <hr>
+              <label class="form-label">⚠️ SUPPORT</label>
+
+              <div class="row g-2">
+                <div class="col-md-6">
+                  <label class="form-label">Дата</label>
+                  <input type="date" name="support_action_date" id="e_support_action_date" class="form-control">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Время</label>
+                  <input type="time" name="support_action_time" id="e_support_action_time" class="form-control">
+                </div>
+              </div>
+
+              <div class="form-check mt-2">
+                <input class="form-check-input" type="checkbox" name="is_unlocked" id="e_is_unlocked">
+                <label class="form-check-label" for="e_is_unlocked">
+                  ✅ UNLOCK
+                </label>
+              </div>
+              <div class="form-check mt-1">
+                <input class="form-check-input" type="checkbox" name="is_all_gesperrt" id="e_is_all_gesperrt">
+                <label class="form-check-label" for="e_is_all_gesperrt">
+                  ❌ ALL Gesperrt
+                </label>
+              </div>
+
+              <label class="form-label mt-2">Комментарий</label>
+              <input type="text" name="support_action_comment" id="e_support_action_comment"
+                     class="form-control" placeholder="Коротко о решении ТП...">
+            </div>
+
             <!-- ПРОДАЖА -->
             <div class="col-12">
               <hr>
@@ -483,6 +530,87 @@
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
             <button type="submit" class="btn btn-primary">Сохранить</button>
           </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ============ МОДАЛКА ВЫГРУЗКИ СТАТИСТИКИ ============ -->
+<div class="modal fade" id="exportModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="{{ url_for('routes.export_excel') }}">
+        <div class="modal-header">
+          <h5 class="modal-title">📊 Выгрузить статистику в Excel</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+
+          <label class="form-label">Дата регистрации — с</label>
+          <input type="date" name="date_from" class="form-control mb-2">
+
+          <label class="form-label">Дата регистрации — по</label>
+          <input type="date" name="date_to" class="form-control mb-3">
+
+          {% if can_view_others %}
+          <label class="form-label">Пользователь</label>
+          <select name="user_filter" class="form-select mb-3">
+            <option value="all">👥 Все пользователи</option>
+            {% for u in users_for_filter %}
+              <option value="{{ u.id }}">{{ u.username }}</option>
+            {% endfor %}
+          </select>
+          {% endif %}
+
+          <label class="form-label">Статусы (если ничего не выбрано — все)</label>
+          <div class="row">
+            <div class="col-6">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="status" value="online" id="exp_online">
+                <label class="form-check-label" for="exp_online">online</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="status" value="Gesperrt" id="exp_gesperrt">
+                <label class="form-check-label" for="exp_gesperrt">Gesperrt</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="status" value="online Loshung" id="exp_loshung">
+                <label class="form-check-label" for="exp_loshung">online Loshung</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="status" value="Pending TOP" id="exp_pending">
+                <label class="form-check-label" for="exp_pending">Pending TOP</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="status" value="TOP online" id="exp_top">
+                <label class="form-check-label" for="exp_top">TOP online</label>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="status" value="unloc online" id="exp_unloc">
+                <label class="form-check-label" for="exp_unloc">unloc online</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="status" value="Anmelden" id="exp_anmelden">
+                <label class="form-check-label" for="exp_anmelden">Anmelden</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="status" value="ALL gesperrt" id="exp_allgesperrt">
+                <label class="form-check-label" for="exp_allgesperrt">ALL gesperrt</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="status" value="SALE" id="exp_sale">
+                <label class="form-check-label" for="exp_sale">SALE</label>
+              </div>
+            </div>
+          </div>
+
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+          <button type="submit" class="btn btn-primary">⬇ Скачать Excel</button>
         </div>
       </form>
     </div>
@@ -636,6 +764,12 @@ async function openAccount(id) {
     document.getElementById("e_device_android").checked = data.device_android;
     document.getElementById("e_device_iphone11").checked = data.device_iphone11;
     document.getElementById("e_device_iphone15").checked = data.device_iphone15;
+
+    document.getElementById("e_support_action_date").value = data.support_action_date;
+    document.getElementById("e_support_action_time").value = data.support_action_time;
+    document.getElementById("e_is_unlocked").checked = data.is_unlocked;
+    document.getElementById("e_is_all_gesperrt").checked = data.is_all_gesperrt;
+    document.getElementById("e_support_action_comment").value = data.support_action_comment;
 
     document.getElementById("e_for_sale").checked = data.for_sale;
     document.getElementById("e_sold_price").value = data.sold_price;
@@ -823,6 +957,27 @@ async function toggleTooltip(accId, btn) {
     // --- Отписки ---
     const unsubsCount = await fetchUnsubsCount(accId);
     document.getElementById("tt_unsubs").textContent = unsubsCount > 0 ? `есть (${unsubsCount})` : "нет";
+
+        // --- Результат ТП ---
+    const supportResultRow = document.getElementById("tt_support_result_row");
+    if (data.support_result_display) {
+        supportResultRow.style.display = "flex";
+        document.getElementById("tt_support_result").textContent = data.support_result_display;
+    } else {
+        supportResultRow.style.display = "none";
+    }
+
+    // --- История статусов ---
+    const historyRow = document.getElementById("tt_history_row");
+    if (data.status_history && data.status_history.length > 0) {
+        historyRow.style.display = "flex";
+        const historyHtml = data.status_history.map(h =>
+            `<div>• ${h.changed_at}: ${h.old_status} → <strong>${h.new_status}</strong> <small>(${h.changed_by})</small></div>`
+        ).join("");
+        document.getElementById("tt_history").innerHTML = historyHtml;
+    } else {
+        historyRow.style.display = "none";
+    }
 
     // --- Позиционируем статично рядом с кнопкой ---
     tooltip.style.display = "block";

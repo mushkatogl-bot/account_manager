@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_required, current_user
 from datetime import datetime
 
-from app.models import Account, Log, Unsubscribe
+from app.models import Account, Log, Unsubscribe, StatusHistory
 from app import db
 
 bp = Blueprint("routes", __name__)
@@ -113,7 +113,10 @@ def account_add():
         return redirect(url_for("routes.index"))
 
     cost_str = request.form.get("cost_amount", "").strip()
-    cost_amount = float(cost_str) if cost_str else None
+    try:
+        cost_amount = float(cost_str) if cost_str else None
+    except ValueError:
+        cost_amount = None
 
     a = Account(
         reg_date=reg_date,
@@ -133,6 +136,7 @@ def account_add():
     a.payment_sent = request.form.get("payment_sent") == "on"
     a.is_on_pc = request.form.get("is_on_pc") == "on"
 
+    # --- Устройство ---
     a.device_android = request.form.get("device_android") == "on"
     a.device_iphone11 = request.form.get("device_iphone11") == "on"
     a.device_iphone15 = request.form.get("device_iphone15") == "on"
@@ -144,6 +148,18 @@ def account_add():
         a.pending_since = datetime.utcnow()
 
     db.session.add(a)
+    db.session.flush()  # чтобы получить a.id до commit
+
+    # История статусов (первая запись)
+    history = StatusHistory(
+        account_id=a.id,
+        old_status=None,
+        new_status=a.status,
+        changed_by=current_user.id,
+        changed_by_username=current_user.username,
+    )
+    db.session.add(history)
+
     db.session.commit()
 
     log = Log(
@@ -192,6 +208,22 @@ def account_json(acc_id):
         "device_android": a.device_android,
         "device_iphone11": a.device_iphone11,
         "device_iphone15": a.device_iphone15,
+        "support_action_date": a.support_action_date.strftime("%Y-%m-%d") if a.support_action_date else "",
+        "support_action_time": a.support_action_time or "",
+        "is_unlocked": a.is_unlocked,
+        "is_all_gesperrt": a.is_all_gesperrt,
+        "support_action_comment": a.support_action_comment or "",
+        "support_result_display": a.support_result_display or "",
+        "support_days": a.support_days,
+        "status_history": [
+            {
+                "old_status": h.old_status or "—",
+                "new_status": h.new_status,
+                "changed_at": h.changed_at.strftime("%d.%m.%Y %H:%M"),
+                "changed_by": h.changed_by_username or "—",
+            }
+            for h in a.status_history_display
+        ],
         "comment": a.comment or "",
         "cost_amount": a.cost_amount if a.cost_amount is not None else "",
         "created_by": a.created_by or 0,
@@ -226,12 +258,18 @@ def account_edit(acc_id):
     a.status = request.form.get("status", "online")
     a.comment = request.form.get("comment", "").strip() or None
     cost_str = request.form.get("cost_amount", "").strip()
-    a.cost_amount = float(cost_str) if cost_str else None
+    try:
+        a.cost_amount = float(cost_str) if cost_str else None
+    except ValueError:
+        a.cost_amount = None
 
     # --- Продажа ---
     a.for_sale = request.form.get("for_sale") == "on"
     price_str = request.form.get("sold_price", "").strip()
-    a.sold_price = float(price_str) if price_str else None
+    try:
+        a.sold_price = float(price_str) if price_str else None
+    except ValueError:
+        a.sold_price = None
 
     # Логика при смене статуса
     if a.status == "Pending TOP" and old_status != "Pending TOP":
@@ -267,10 +305,36 @@ def account_edit(acc_id):
     a.device_iphone11 = request.form.get("device_iphone11") == "on"
     a.device_iphone15 = request.form.get("device_iphone15") == "on"
 
+    # --- Support Action ---
+    action_date_str = request.form.get("support_action_date", "").strip()
+    if action_date_str:
+        try:
+            a.support_action_date = datetime.strptime(action_date_str, "%Y-%m-%d").date()
+        except ValueError:
+            a.support_action_date = None
+    else:
+        a.support_action_date = None
+
+    a.support_action_time = request.form.get("support_action_time", "").strip() or None
+    a.is_unlocked = request.form.get("is_unlocked") == "on"
+    a.is_all_gesperrt = request.form.get("is_all_gesperrt") == "on"
+    a.support_action_comment = request.form.get("support_action_comment", "").strip() or None
+
     # --- Куки ---
     if "cookies_text" in request.form:
         cookies = request.form["cookies_text"].strip()
         a.cookies_text = cookies if cookies else None
+
+    # --- История статусов ---
+    if old_status != a.status:
+        history = StatusHistory(
+            account_id=a.id,
+            old_status=old_status,
+            new_status=a.status,
+            changed_by=current_user.id,
+            changed_by_username=current_user.username,
+        )
+        db.session.add(history)
 
     db.session.commit()
 
@@ -515,3 +579,146 @@ def account_delete(acc_id):
 
     flash(f"Аккаунт {email} удалён", "warning")
     return redirect(url_for("routes.index"))
+
+# ============================================================
+# ВЫГРУЗКА СТАТИСТИКИ В EXCEL
+# ============================================================
+from io import BytesIO
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment
+
+
+@bp.route("/export/excel", methods=["POST"])
+@login_required
+def export_excel():
+    from datetime import date as date_cls
+
+    # --- Права ---
+    is_admin = (current_user.role == "admin")
+    can_view_others = is_admin or current_user.can_view_others
+
+    # --- Фильтры ---
+    user_filter = request.form.get("user_filter", "").strip()
+    date_from_str = request.form.get("date_from", "").strip()
+    date_to_str = request.form.get("date_to", "").strip()
+    statuses = request.form.getlist("status")  # список выбранных статусов
+
+    query = Account.query
+
+    # Права
+    if not can_view_others:
+        query = query.filter(Account.created_by == current_user.id)
+    elif user_filter and user_filter != "all":
+        try:
+            uid = int(user_filter)
+            query = query.filter(Account.created_by == uid)
+        except ValueError:
+            pass
+
+    # Дата регистрации
+    if date_from_str:
+        try:
+            d_from = datetime.strptime(date_from_str, "%Y-%m-%d").date()
+            query = query.filter(Account.reg_date >= d_from)
+        except ValueError:
+            pass
+    if date_to_str:
+        try:
+            d_to = datetime.strptime(date_to_str, "%Y-%m-%d").date()
+            query = query.filter(Account.reg_date <= d_to)
+        except ValueError:
+            pass
+
+    # Статусы
+    if statuses:
+        query = query.filter(Account.status.in_(statuses))
+
+    accounts = query.order_by(Account.reg_date.desc()).all()
+
+    # --- Генерация Excel ---
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Аккаунты"
+
+    headers = [
+        "Дата регистрации", "Email", "Телефон", "Стоимость номера ($)",
+        "Текущий статус", "История статусов",
+        "Комментарий к аккаунту",  # Это поле comment
+        "Дата письма в ТП", "Текст письма ТП",
+        "Скрины отправлены", "Оплата отправлена",  # НОВОЕ
+        "Комментарий ТП",  # Это support_action_comment
+        "Дата блокировки (ALL Gesperrt)", "Дата разблокировки", "Время разблокировки",
+        "Решение ТП",
+    ]
+
+
+    # Заголовки
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=header)
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill("solid", fgColor="4B0082")
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+
+    # Данные
+    for row_idx, a in enumerate(accounts, 2):
+        # История
+        history_str = "; ".join([
+            f"{h.changed_at.strftime('%d.%m.%Y')}: {h.old_status or '—'}→{h.new_status}"
+            for h in a.status_history_display
+        ])
+
+        ws.cell(row=row_idx, column=1, value=a.reg_date.strftime("%d.%m.%Y") if a.reg_date else "")
+        ws.cell(row=row_idx, column=2, value=a.email or "")
+        ws.cell(row=row_idx, column=3, value=a.phone or "")
+        ws.cell(row=row_idx, column=4, value=a.cost_amount if a.cost_amount is not None else 2.0)
+        ws.cell(row=row_idx, column=5, value=a.status or "")
+        ws.cell(row=row_idx, column=6, value=history_str)
+        ws.cell(row=row_idx, column=7, value=a.comment or "")  # Комментарий к аккаунту
+        ws.cell(row=row_idx, column=8, value=a.support_date.strftime("%d.%m.%Y") if a.support_date else "")
+        ws.cell(row=row_idx, column=9, value=a.support_text or "")
+        ws.cell(row=row_idx, column=10, value="Да" if a.screens_sent else "Нет")  # Скрины
+        ws.cell(row=row_idx, column=11, value="Да" if a.payment_sent else "Нет")  # Оплата
+        ws.cell(row=row_idx, column=12, value=a.support_action_comment or "")  # Комментарий ТП
+
+        # Дата лока = когда ТП дала ALL Gesperrt
+        lock_date = ""
+        if a.is_all_gesperrt and a.support_action_date:
+            lock_date = a.support_action_date.strftime("%d.%m.%Y")
+        ws.cell(row=row_idx, column=13, value=lock_date)
+
+        # Дата разблокировки
+        unlock_date = ""
+        if a.is_unlocked and a.support_action_date:
+            unlock_date = a.support_action_date.strftime("%d.%m.%Y")
+        ws.cell(row=row_idx, column=14, value=unlock_date)
+
+        ws.cell(row=row_idx, column=15, value=a.support_action_time or "")
+        ws.cell(row=row_idx, column=16, value=a.support_result_display or "")
+
+    # Ширина колонок
+    widths = [15, 30, 15, 12, 15, 40, 35, 15, 40, 12, 12, 25, 15, 15, 12, 25]
+    for col, width in enumerate(widths, 1):
+        ws.column_dimensions[chr(64 + col)].width = width
+
+    # --- Отправка файла ---
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    filename = f"accounts_export_{datetime.utcnow().strftime('%Y%m%d_%H%M')}.xlsx"
+
+    log = Log(
+        user_id=current_user.id,
+        username=current_user.username,
+        action="export_excel",
+        target="",
+        details=f"Выгружено: {len(accounts)}",
+    )
+    db.session.add(log)
+    db.session.commit()
+
+    return Response(
+        buf.read(),
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )

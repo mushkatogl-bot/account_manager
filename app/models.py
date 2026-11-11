@@ -48,6 +48,13 @@ class Account(db.Model):
     screens_sent = db.Column(db.Boolean, default=False)         # скрины отправлены
     payment_sent = db.Column(db.Boolean, default=False)         # оплата отправлена
 
+    # --- Support: Разблокировка ---
+    support_action_date = db.Column(db.Date, nullable=True)  # дата
+    support_action_time = db.Column(db.String(8), nullable=True)  # время
+    is_unlocked = db.Column(db.Boolean, default=False)  # ✅ UNLOCK
+    is_all_gesperrt = db.Column(db.Boolean, default=False)  # ❌ ALL Gesperrt
+    support_action_comment = db.Column(db.Text, nullable=True)  # маленький комментарий
+
     # --- Устройство (на чём зареган почтовый ящик) ---
     device_android = db.Column(db.Boolean, default=False)
     device_iphone11 = db.Column(db.Boolean, default=False)
@@ -84,6 +91,36 @@ class Account(db.Model):
 
     def __repr__(self):
         return f"<Account {self.email} [{self.status}]>"
+
+    @property
+    def support_days(self):
+        """Дней от письма в ТП до решения ТП"""
+        if not self.support_date or not self.support_action_date:
+            return None
+        delta = self.support_action_date - self.support_date
+        return delta.days
+
+    @property
+    def support_result_display(self):
+        """Текст для тултипа: '✅ UNLOCK через N дней' или '❌ ALL Gesperrt через N дней'"""
+        if self.is_unlocked:
+            result = "✅ UNLOCK"
+        elif self.is_all_gesperrt:
+            result = "❌ ALL Gesperrt"
+        else:
+            return None
+
+        days = self.support_days
+        if days is not None:
+            return f"{result} через {days} дн."
+        return result
+
+    @property
+    def status_history_display(self):
+        """Краткая история статусов"""
+        if not self.status_history:
+            return []
+        return sorted(self.status_history, key=lambda h: h.changed_at)
 
     # ============================================================
     # ВКЛАДКИ
@@ -246,3 +283,23 @@ class Expense(db.Model):
 
     def __repr__(self):
         return f"<Expense {self.category} ${self.amount}>"
+
+
+# ============================================================
+# ИСТОРИЯ СТАТУСОВ
+# ============================================================
+class StatusHistory(db.Model):
+    __tablename__ = "status_history"
+
+    id = db.Column(db.Integer, primary_key=True)
+    account_id = db.Column(db.Integer, db.ForeignKey("accounts.id"), nullable=False)
+    old_status = db.Column(db.String(32), nullable=True)
+    new_status = db.Column(db.String(32), nullable=False)
+    changed_by = db.Column(db.Integer, nullable=True)
+    changed_by_username = db.Column(db.String(64), nullable=True)
+    changed_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    account = db.relationship("Account", backref="status_history")
+
+    def __repr__(self):
+        return f"<StatusHistory {self.account_id}: {self.old_status}→{self.new_status}>"
