@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_required, current_user
 from datetime import datetime
 
-from app.models import Account, Log, Unsubscribe, StatusHistory
+from app.models import Account, Log, Unsubscribe, SupportTicket, StatusHistory
 from app import db
 
 bp = Blueprint("routes", __name__)
@@ -141,6 +141,9 @@ def account_add():
     a.device_iphone11 = request.form.get("device_iphone11") == "on"
     a.device_iphone15 = request.form.get("device_iphone15") == "on"
 
+    # --- ТОП ---
+    a.is_top = request.form.get("is_top") == "on"
+
     if status == "SALE":
         a.sold = True
         a.sold_date = datetime.utcnow()
@@ -194,25 +197,30 @@ def account_json(acc_id):
         "account_password": a.account_password or "",
         "phone": a.phone or "",
         "status": a.status or "online",
+        "is_top": a.is_top,
         "for_sale": a.for_sale,
         "sold": a.sold,
         "sold_price": a.sold_price or "",
         "sold_date": a.sold_date.strftime("%Y-%m-%d %H:%M") if a.sold_date else "",
         "has_cookies": bool(a.cookies_text),
         "cookies_text": a.cookies_text or "",
-        "support_date": a.support_date.strftime("%Y-%m-%d") if a.support_date else "",
-        "support_text": a.support_text or "",
         "is_on_pc": a.is_on_pc,
-        "screens_sent": a.screens_sent,
         "payment_sent": a.payment_sent,
         "device_android": a.device_android,
         "device_iphone11": a.device_iphone11,
         "device_iphone15": a.device_iphone15,
-        "support_action_date": a.support_action_date.strftime("%Y-%m-%d") if a.support_action_date else "",
-        "support_action_time": a.support_action_time or "",
-        "is_unlocked": a.is_unlocked,
-        "is_all_gesperrt": a.is_all_gesperrt,
-        "support_action_comment": a.support_action_comment or "",
+        "tickets": [
+            {
+                "id": t.id,
+                "letter_number": t.letter_number,
+                "sent_date": t.sent_date.strftime("%Y-%m-%d") if t.sent_date else "",
+                "text": t.text or "",
+                "screens_sent": t.screens_sent,
+                "outcome": t.outcome,
+                "resolved_date": t.resolved_date.strftime("%Y-%m-%d") if t.resolved_date else "",
+            }
+            for t in sorted(a.support_tickets, key=lambda x: x.letter_number)
+        ],
         "support_result_display": a.support_result_display or "",
         "support_days": a.support_days,
         "status_history": [
@@ -285,19 +293,8 @@ def account_edit(acc_id):
         a.sold = False
         a.sold_date = None
 
-    # --- Support (новые поля) ---
-    support_date_str = request.form.get("support_date", "").strip()
-    if support_date_str:
-        try:
-            a.support_date = datetime.strptime(support_date_str, "%Y-%m-%d").date()
-        except ValueError:
-            a.support_date = None
-    else:
-        a.support_date = None
-
-    a.support_text = request.form.get("support_text", "").strip() or None
+    # --- Support (простые поля) ---
     a.is_on_pc = request.form.get("is_on_pc") == "on"
-    a.screens_sent = request.form.get("screens_sent") == "on"
     a.payment_sent = request.form.get("payment_sent") == "on"
 
     # --- Устройство ---
@@ -305,20 +302,8 @@ def account_edit(acc_id):
     a.device_iphone11 = request.form.get("device_iphone11") == "on"
     a.device_iphone15 = request.form.get("device_iphone15") == "on"
 
-    # --- Support Action ---
-    action_date_str = request.form.get("support_action_date", "").strip()
-    if action_date_str:
-        try:
-            a.support_action_date = datetime.strptime(action_date_str, "%Y-%m-%d").date()
-        except ValueError:
-            a.support_action_date = None
-    else:
-        a.support_action_date = None
-
-    a.support_action_time = request.form.get("support_action_time", "").strip() or None
-    a.is_unlocked = request.form.get("is_unlocked") == "on"
-    a.is_all_gesperrt = request.form.get("is_all_gesperrt") == "on"
-    a.support_action_comment = request.form.get("support_action_comment", "").strip() or None
+    # --- ТОП ---
+    a.is_top = request.form.get("is_top") == "on"
 
     # --- Куки ---
     if "cookies_text" in request.form:
@@ -580,6 +565,118 @@ def account_delete(acc_id):
     flash(f"Аккаунт {email} удалён", "warning")
     return redirect(url_for("routes.index"))
 
+
+# ============================================================
+# ТИКЕТЫ: ДОБАВИТЬ
+# ============================================================
+@bp.route("/account/<int:acc_id>/ticket/add", methods=["POST"])
+@login_required
+def ticket_add(acc_id):
+    a = Account.query.get_or_404(acc_id)
+
+    is_admin = (current_user.role == "admin")
+    can_edit_others = is_admin or current_user.can_edit_others
+    if a.created_by != current_user.id and not can_edit_others:
+        return {"error": "forbidden"}, 403
+
+    if len(a.support_tickets) >= 5:
+        return {"error": "max_tickets"}, 400
+
+    sent_date_str = request.form.get("sent_date", "").strip()
+    if not sent_date_str:
+        return {"error": "no_date"}, 400
+
+    try:
+        sent_date = datetime.strptime(sent_date_str, "%Y-%m-%d").date()
+    except ValueError:
+        return {"error": "bad_date"}, 400
+
+    next_number = 1
+    if a.support_tickets:
+        next_number = max(t.letter_number for t in a.support_tickets) + 1
+
+    outcome = request.form.get("outcome", "pending")
+    resolved_date_str = request.form.get("resolved_date", "").strip()
+    resolved_date = None
+    if resolved_date_str and outcome != "pending":
+        try:
+            resolved_date = datetime.strptime(resolved_date_str, "%Y-%m-%d").date()
+        except ValueError:
+            pass
+
+    t = SupportTicket(
+        account_id=a.id,
+        letter_number=next_number,
+        sent_date=sent_date,
+        text=request.form.get("text", "").strip() or None,
+        screens_sent=request.form.get("screens_sent") == "on",
+        outcome=outcome,
+        resolved_date=resolved_date,
+    )
+    db.session.add(t)
+    db.session.commit()
+
+    return {"ok": True, "id": t.id}
+
+
+# ============================================================
+# ТИКЕТЫ: РЕДАКТИРОВАТЬ
+# ============================================================
+@bp.route("/ticket/<int:ticket_id>/edit", methods=["POST"])
+@login_required
+def ticket_edit(ticket_id):
+    t = SupportTicket.query.get_or_404(ticket_id)
+    a = t.account
+
+    is_admin = (current_user.role == "admin")
+    can_edit_others = is_admin or current_user.can_edit_others
+    if a.created_by != current_user.id and not can_edit_others:
+        return {"error": "forbidden"}, 403
+
+    sent_date_str = request.form.get("sent_date", "").strip()
+    if sent_date_str:
+        try:
+            t.sent_date = datetime.strptime(sent_date_str, "%Y-%m-%d").date()
+        except ValueError:
+            pass
+
+    t.text = request.form.get("text", "").strip() or None
+    t.screens_sent = request.form.get("screens_sent") == "on"
+    t.outcome = request.form.get("outcome", "pending")
+
+    resolved_date_str = request.form.get("resolved_date", "").strip()
+    if resolved_date_str and t.outcome != "pending":
+        try:
+            t.resolved_date = datetime.strptime(resolved_date_str, "%Y-%m-%d").date()
+        except ValueError:
+            t.resolved_date = None
+    else:
+        t.resolved_date = None
+
+    db.session.commit()
+    return {"ok": True}
+
+
+# ============================================================
+# ТИКЕТЫ: УДАЛИТЬ
+# ============================================================
+@bp.route("/ticket/<int:ticket_id>/delete", methods=["POST"])
+@login_required
+def ticket_delete(ticket_id):
+    t = SupportTicket.query.get_or_404(ticket_id)
+    a = t.account
+
+    is_admin = (current_user.role == "admin")
+    can_edit_others = is_admin or current_user.can_edit_others
+    if a.created_by != current_user.id and not can_edit_others:
+        return {"error": "forbidden"}, 403
+
+    db.session.delete(t)
+    db.session.commit()
+    return {"ok": True}
+
+
+# ============================================================
 # ============================================================
 # ВЫГРУЗКА СТАТИСТИКИ В EXCEL
 # ============================================================
@@ -591,8 +688,6 @@ from openpyxl.styles import Font, PatternFill, Alignment
 @bp.route("/export/excel", methods=["POST"])
 @login_required
 def export_excel():
-    from datetime import date as date_cls
-
     # --- Права ---
     is_admin = (current_user.role == "admin")
     can_view_others = is_admin or current_user.can_view_others
@@ -642,15 +737,18 @@ def export_excel():
 
     headers = [
         "Дата регистрации", "Email", "Телефон", "Стоимость номера ($)",
-        "Текущий статус", "История статусов",
-        "Комментарий к аккаунту",  # Это поле comment
-        "Дата письма в ТП", "Текст письма ТП",
-        "Скрины отправлены", "Оплата отправлена",  # НОВОЕ
-        "Комментарий ТП",  # Это support_action_comment
-        "Дата блокировки (ALL Gesperrt)", "Дата разблокировки", "Время разблокировки",
-        "Решение ТП",
+        "Текущий статус", "ТОП", "История статусов",
+        "Комментарий к аккаунту",
+        "Оплата отправлена",
     ]
-
+    # Тикеты — 5 штук по 5 колонок
+    for i in range(1, 6):
+        headers += [
+            f"Тикет {i}: дата", f"Тикет {i}: скрины", f"Тикет {i}: текст",
+            f"Тикет {i}: результат", f"Тикет {i}: дата решения"
+        ]
+    # Дополнительно
+    headers.append("Дней между 1 и 2 письмом")
 
     # Заголовки
     for col, header in enumerate(headers, 1):
@@ -667,36 +765,48 @@ def export_excel():
             for h in a.status_history_display
         ])
 
-        ws.cell(row=row_idx, column=1, value=a.reg_date.strftime("%d.%m.%Y") if a.reg_date else "")
-        ws.cell(row=row_idx, column=2, value=a.email or "")
-        ws.cell(row=row_idx, column=3, value=a.phone or "")
-        ws.cell(row=row_idx, column=4, value=a.cost_amount if a.cost_amount is not None else 2.0)
-        ws.cell(row=row_idx, column=5, value=a.status or "")
-        ws.cell(row=row_idx, column=6, value=history_str)
-        ws.cell(row=row_idx, column=7, value=a.comment or "")  # Комментарий к аккаунту
-        ws.cell(row=row_idx, column=8, value=a.support_date.strftime("%d.%m.%Y") if a.support_date else "")
-        ws.cell(row=row_idx, column=9, value=a.support_text or "")
-        ws.cell(row=row_idx, column=10, value="Да" if a.screens_sent else "Нет")  # Скрины
-        ws.cell(row=row_idx, column=11, value="Да" if a.payment_sent else "Нет")  # Оплата
-        ws.cell(row=row_idx, column=12, value=a.support_action_comment or "")  # Комментарий ТП
+        col = 1
+        ws.cell(row=row_idx, column=col, value=a.reg_date.strftime("%d.%m.%Y") if a.reg_date else ""); col += 1
+        ws.cell(row=row_idx, column=col, value=a.email or ""); col += 1
+        ws.cell(row=row_idx, column=col, value=a.phone or ""); col += 1
+        ws.cell(row=row_idx, column=col, value=a.cost_amount if a.cost_amount is not None else 2.0); col += 1
+        ws.cell(row=row_idx, column=col, value=a.status or ""); col += 1
+        ws.cell(row=row_idx, column=col, value="👑" if a.is_top else ""); col += 1
+        ws.cell(row=row_idx, column=col, value=history_str); col += 1
+        ws.cell(row=row_idx, column=col, value=a.comment or ""); col += 1
+        ws.cell(row=row_idx, column=col, value="Да" if a.payment_sent else "Нет"); col += 1
 
-        # Дата лока = когда ТП дала ALL Gesperrt
-        lock_date = ""
-        if a.is_all_gesperrt and a.support_action_date:
-            lock_date = a.support_action_date.strftime("%d.%m.%Y")
-        ws.cell(row=row_idx, column=13, value=lock_date)
+        # Сортируем тикеты
+        tickets = sorted(a.support_tickets, key=lambda t: t.letter_number)
 
-        # Дата разблокировки
-        unlock_date = ""
-        if a.is_unlocked and a.support_action_date:
-            unlock_date = a.support_action_date.strftime("%d.%m.%Y")
-        ws.cell(row=row_idx, column=14, value=unlock_date)
+        for i in range(5):
+            if i < len(tickets):
+                t = tickets[i]
+                outcome_text = {
+                    "pending": "⏳ Ожидание",
+                    "unlocked": "✅ UNLOCK",
+                    "all_gesperrt": "❌ ALL Gesperrt",
+                }.get(t.outcome, t.outcome)
+                ws.cell(row=row_idx, column=col, value=t.sent_date.strftime("%d.%m.%Y") if t.sent_date else ""); col += 1
+                ws.cell(row=row_idx, column=col, value="Да" if t.screens_sent else "Нет"); col += 1
+                ws.cell(row=row_idx, column=col, value=t.text or ""); col += 1
+                ws.cell(row=row_idx, column=col, value=outcome_text); col += 1
+                ws.cell(row=row_idx, column=col, value=t.resolved_date.strftime("%d.%m.%Y") if t.resolved_date else ""); col += 1
+            else:
+                for _ in range(5):
+                    ws.cell(row=row_idx, column=col, value=""); col += 1
 
-        ws.cell(row=row_idx, column=15, value=a.support_action_time or "")
-        ws.cell(row=row_idx, column=16, value=a.support_result_display or "")
+        # Дней между тикет 1 и 2
+        days_between = ""
+        if len(tickets) >= 2 and tickets[0].sent_date and tickets[1].sent_date:
+            days_between = (tickets[1].sent_date - tickets[0].sent_date).days
+        ws.cell(row=row_idx, column=col, value=days_between)
 
     # Ширина колонок
-    widths = [15, 30, 15, 12, 15, 40, 35, 15, 40, 12, 12, 25, 15, 15, 12, 25]
+    widths = [15, 30, 15, 12, 15, 8, 40, 35, 12]
+    for _ in range(5):
+        widths += [15, 10, 40, 20, 15]
+    widths += [15]
     for col, width in enumerate(widths, 1):
         ws.column_dimensions[chr(64 + col)].width = width
 

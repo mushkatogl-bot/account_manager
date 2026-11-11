@@ -38,6 +38,9 @@ class Account(db.Model):
     # --- Статус ---
     status = db.Column(db.String(32), default="online", nullable=False)
 
+    # --- ТОП-плашка ---
+    is_top = db.Column(db.Boolean, default=False)
+
     # --- Куки ---
     cookies_text = db.Column(db.Text, nullable=True)
 
@@ -217,6 +220,52 @@ class Account(db.Model):
         """Письмо в ТП отправлено (есть текст + дата)"""
         return bool(self.support_text and self.support_date)
 
+    # ============================================================
+    # ТИКЕТЫ ТП
+    # ============================================================
+    @property
+    def tickets_count(self):
+        """Кол-во тикетов"""
+        return len(self.support_tickets) if self.support_tickets else 0
+
+    @property
+    def has_screens(self):
+        """Есть ли скрины хотя бы в одном тикете"""
+        return any(t.screens_sent for t in self.support_tickets)
+
+    @property
+    def first_ticket_date(self):
+        """Дата первого тикета"""
+        if not self.support_tickets:
+            return None
+        return sorted(self.support_tickets, key=lambda t: t.sent_date)[0].sent_date
+
+    @property
+    def has_unlock(self):
+        """Был ли хоть один UNLOCK"""
+        return any(t.outcome == "unlocked" for t in self.support_tickets)
+
+    @property
+    def has_all_gesperrt(self):
+        """Был ли хоть один ALL Gesperrt"""
+        return any(t.outcome == "all_gesperrt" for t in self.support_tickets)
+
+    @property
+    def unlock_days(self):
+        """Сколько дней прошло до UNLOCK (от письма до решения)"""
+        for t in self.support_tickets:
+            if t.outcome == "unlocked" and t.resolved_date and t.sent_date:
+                return (t.resolved_date - t.sent_date).days
+        return None
+
+    @property
+    def all_gesperrt_days(self):
+        """Сколько дней прошло до ALL Gesperrt"""
+        for t in self.support_tickets:
+            if t.outcome == "all_gesperrt" and t.resolved_date and t.sent_date:
+                return (t.resolved_date - t.sent_date).days
+        return None
+
 
 # ============================================================
 # ОТПИСКИ
@@ -303,3 +352,24 @@ class StatusHistory(db.Model):
 
     def __repr__(self):
         return f"<StatusHistory {self.account_id}: {self.old_status}→{self.new_status}>"
+
+
+# ============================================================
+# ОБРАЩЕНИЯ В ТП
+# ============================================================
+class SupportTicket(db.Model):
+    __tablename__ = "support_tickets"
+
+    id = db.Column(db.Integer, primary_key=True)
+    account_id = db.Column(db.Integer, db.ForeignKey("accounts.id"), nullable=False)
+    letter_number = db.Column(db.Integer, nullable=False)  # 1, 2, 3, 4, 5
+    sent_date = db.Column(db.Date, nullable=False)          # дата письма
+    text = db.Column(db.Text, nullable=True)                # текст письма
+    screens_sent = db.Column(db.Boolean, default=False)     # скрины
+    outcome = db.Column(db.String(32), default="pending")   # pending / unlocked / all_gesperrt
+    resolved_date = db.Column(db.Date, nullable=True)       # дата решения
+
+    account = db.relationship("Account", backref="support_tickets")
+
+    def __repr__(self):
+        return f"<SupportTicket {self.account_id} #{self.letter_number} [{self.outcome}]>"
