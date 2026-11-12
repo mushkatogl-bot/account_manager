@@ -13,10 +13,10 @@
     </div>
 </div>
 
-<!-- Поиск и сортировка -->
-<form class="row g-2 mb-3" method="get">
+<!-- Поиск + фильтры -->
+<form class="row g-2 mb-3" method="get" id="filterForm">
     <input type="hidden" name="tab" value="{{ tab }}">
-    <div class="col-md-4">
+    <div class="col-md-5">
         <input type="text" name="q" value="{{ q }}" class="form-control"
                placeholder="Поиск по почте или нику...">
     </div>
@@ -33,18 +33,15 @@
         </select>
     </div>
     {% endif %}
-    <div class="col-md-3">
-        <select name="sort" class="form-select" onchange="this.form.submit()">
-            <option value="reg_date" {% if sort_by == 'reg_date' %}selected{% endif %}>
-                Сортировать по дате
-            </option>
-            <option value="status" {% if sort_by == 'status' %}selected{% endif %}>
-                Сортировать по статусу
-            </option>
-        </select>
+    <div class="col-md-2">
+        <button type="submit" class="btn btn-primary w-100">Найти</button>
     </div>
     <div class="col-md-2">
-        <button class="btn btn-primary w-100">Найти</button>
+        <button type="button" class="btn {% if has_active_filters %}btn-warning{% else %}btn-outline-secondary{% endif %} w-100"
+                data-bs-toggle="modal" data-bs-target="#filterModal">
+            ⚙️ Фильтры
+            {% if has_active_filters %}<span class="badge bg-dark">!</span>{% endif %}
+        </button>
     </div>
 </form>
 
@@ -1206,5 +1203,117 @@ function copyPassword(event) {
     });
 }
 </script>
+
+<!-- ============ МОДАЛКА ФИЛЬТРОВ ============ -->
+<div class="modal fade" id="filterModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <form method="get" action="{{ url_for('routes.index') }}">
+        <input type="hidden" name="tab" value="{{ tab }}">
+        <input type="hidden" name="q" value="{{ q }}">
+        <input type="hidden" name="user_filter" value="{{ user_filter }}">
+
+        <div class="modal-header">
+          <h5 class="modal-title">⚙️ Тонкая сортировка</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+
+          <!-- ДАТЫ -->
+          <label class="form-label fw-bold">📅 Диапазон дат регистрации</label>
+          <div class="row g-2 mb-3">
+            <div class="col-md-6">
+              <label class="form-label small">С</label>
+              <input type="date" name="date_from" class="form-control" value="{{ date_from }}">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small">По</label>
+              <input type="date" name="date_to" class="form-control" value="{{ date_to }}">
+            </div>
+          </div>
+
+          <!-- СТАТУСЫ -->
+          <label class="form-label fw-bold">📊 Статусы</label>
+          <div class="row mb-3">
+            <div class="col-md-6">
+              {% for s in ['online', 'Gesperrt', 'TOP online', 'unloc online', 'online Loshung'] %}
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="status" value="{{ s }}"
+                       id="fstatus_{{ loop.index }}" {% if s in filter_statuses %}checked{% endif %}>
+                <label class="form-check-label" for="fstatus_{{ loop.index }}">{{ s }}</label>
+              </div>
+              {% endfor %}
+            </div>
+            <div class="col-md-6">
+              {% for s in ['Pending TOP', 'Anmelden', 'ALL gesperrt', 'SALE'] %}
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="status" value="{{ s }}"
+                       id="fstatus2_{{ loop.index }}" {% if s in filter_statuses %}checked{% endif %}>
+                <label class="form-check-label" for="fstatus2_{{ loop.index }}">{{ s }}</label>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+
+          <!-- УСТРОЙСТВА -->
+          <label class="form-label fw-bold">📱 Устройство почты</label>
+          <div class="mb-3">
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="checkbox" name="device" value="android"
+                     id="fdev_android" {% if 'android' in filter_devices %}checked{% endif %}>
+              <label class="form-check-label" for="fdev_android">🤖 Android</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="checkbox" name="device" value="iphone11"
+                     id="fdev_ip11" {% if 'iphone11' in filter_devices %}checked{% endif %}>
+              <label class="form-check-label" for="fdev_ip11">📱 iPhone 11</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="checkbox" name="device" value="iphone15"
+                     id="fdev_ip15" {% if 'iphone15' in filter_devices %}checked{% endif %}>
+              <label class="form-check-label" for="fdev_ip15">📱 iPhone 15</label>
+            </div>
+          </div>
+
+          <!-- ОПЛАТА / СКРИНЫ -->
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label class="form-label fw-bold">💳 Оплата</label>
+              <select name="payment" class="form-select">
+                <option value="" {% if not filter_payment %}selected{% endif %}>— все —</option>
+                <option value="yes" {% if filter_payment == 'yes' %}selected{% endif %}>✅ Отправлена</option>
+                <option value="no" {% if filter_payment == 'no' %}selected{% endif %}>❌ Не отправлена</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-bold">📸 Скрины</label>
+              <select name="screens" class="form-select">
+                <option value="" {% if not filter_screens %}selected{% endif %}>— все —</option>
+                <option value="yes" {% if filter_screens == 'yes' %}selected{% endif %}>✅ Отправлены</option>
+                <option value="no" {% if filter_screens == 'no' %}selected{% endif %}>❌ Не отправлены</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- СОРТИРОВКА -->
+          <label class="form-label fw-bold">🔀 Сортировка</label>
+          <select name="sort" class="form-select">
+            <option value="reg_date" {% if sort_by == 'reg_date' %}selected{% endif %}>По дате (свежие сначала)</option>
+            <option value="status" {% if sort_by == 'status' %}selected{% endif %}>По статусу</option>
+            <option value="email" {% if sort_by == 'email' %}selected{% endif %}>По email (A-Z)</option>
+          </select>
+
+        </div>
+        <div class="modal-footer">
+          <a href="{{ url_for('routes.index') }}?tab={{ tab }}" class="btn btn-outline-secondary">
+            🗑 Сбросить всё
+          </a>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+          <button type="submit" class="btn btn-primary">✅ Применить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 
 {% endblock %}

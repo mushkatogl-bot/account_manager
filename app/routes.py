@@ -17,24 +17,30 @@ def index():
     tab = request.args.get("tab", "working")
     q = request.args.get("q", "").strip()
     sort_by = request.args.get("sort", "reg_date")
-    user_filter = request.args.get("user_filter", "mine").strip()  # id юзера или пусто
+    user_filter = request.args.get("user_filter", "mine").strip()
+
+    # --- Новые фильтры ---
+    date_from = request.args.get("date_from", "").strip()
+    date_to = request.args.get("date_to", "").strip()
+    filter_statuses = request.args.getlist("status")  # список
+    filter_devices = request.args.getlist("device")   # android / iphone11 / iphone15
+    filter_payment = request.args.get("payment", "")  # "" / "yes" / "no"
+    filter_screens = request.args.get("screens", "")  # "" / "yes" / "no"
 
     # --- Базовый запрос ---
     query = Account.query
 
-    # --- Права доступа ---
+    # --- Права ---
     is_admin = (current_user.role == "admin")
     can_view_others = is_admin or current_user.can_view_others
     can_edit_others = is_admin or current_user.can_edit_others
 
-    # Если не может видеть чужие — только свои
     if not can_view_others:
         query = query.filter(Account.created_by == current_user.id)
     elif user_filter:
-        # Фильтр по конкретному юзеру
         if user_filter == "mine":
             query = query.filter(Account.created_by == current_user.id)
-        else:
+        elif user_filter != "all":
             try:
                 uid = int(user_filter)
                 query = query.filter(Account.created_by == uid)
@@ -47,43 +53,96 @@ def index():
             (Account.email.ilike(f"%{q}%")) | (Account.nick.ilike(f"%{q}%"))
         )
 
+    # --- Фильтр по дате ---
+    if date_from:
+        try:
+            d_from = datetime.strptime(date_from, "%Y-%m-%d").date()
+            query = query.filter(Account.reg_date >= d_from)
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            d_to = datetime.strptime(date_to, "%Y-%m-%d").date()
+            query = query.filter(Account.reg_date <= d_to)
+        except ValueError:
+            pass
+
+    # --- Фильтр по статусам ---
+    if filter_statuses:
+        query = query.filter(Account.status.in_(filter_statuses))
+
+    # --- Фильтр по устройствам ---
+    if filter_devices:
+        # Если выбрано хоть одно устройство — нужен ИЛИ
+        from sqlalchemy import or_
+        conditions = []
+        if "android" in filter_devices:
+            conditions.append(Account.device_android == True)
+        if "iphone11" in filter_devices:
+            conditions.append(Account.device_iphone11 == True)
+        if "iphone15" in filter_devices:
+            conditions.append(Account.device_iphone15 == True)
+        if conditions:
+            query = query.filter(or_(*conditions))
+
+    # --- Оплата ---
+    if filter_payment == "yes":
+        query = query.filter(Account.payment_sent == True)
+    elif filter_payment == "no":
+        query = query.filter(Account.payment_sent == False)
+
+    # --- Скрины (есть в любом тикете) ---
+    if filter_screens:
+        from app.models import SupportTicket
+        subq_has = db.session.query(SupportTicket.account_id).filter(SupportTicket.screens_sent == True)
+        if filter_screens == "yes":
+            query = query.filter(Account.id.in_(subq_has))
+        elif filter_screens == "no":
+            query = query.filter(~Account.id.in_(subq_has))
+
     # --- Сортировка ---
     if sort_by == "status":
         query = query.order_by(Account.status.asc())
+    elif sort_by == "email":
+        query = query.order_by(Account.email.asc())
     else:
         query = query.order_by(Account.reg_date.desc())
 
     all_accounts = query.all()
 
-    # --- Разбиваем на 4 вкладки ---
+    # --- Вкладки ---
     for_sale = [a for a in all_accounts if a.is_for_sale_tab]
     working  = [a for a in all_accounts if a.is_working_tab]
     sold     = [a for a in all_accounts if a.is_sold_tab]
     invalid  = [a for a in all_accounts if a.is_invalid_tab]
 
-    # --- Список юзеров для фильтра (только если может видеть чужие) ---
+    # --- Список юзеров ---
     users_for_filter = []
     if can_view_others:
         from app.models import User
         users_for_filter = User.query.order_by(User.username.asc()).all()
 
+    # --- Активные фильтры (для подсветки кнопки) ---
+    has_active_filters = bool(
+        date_from or date_to or filter_statuses or filter_devices
+        or filter_payment or filter_screens or sort_by != "reg_date"
+    )
+
     return render_template(
         "index.html",
-        tab=tab,
-        q=q,
-        sort_by=sort_by,
-        user_filter=user_filter,
+        tab=tab, q=q, sort_by=sort_by, user_filter=user_filter,
+        date_from=date_from, date_to=date_to,
+        filter_statuses=filter_statuses,
+        filter_devices=filter_devices,
+        filter_payment=filter_payment,
+        filter_screens=filter_screens,
+        has_active_filters=has_active_filters,
         users_for_filter=users_for_filter,
         can_view_others=can_view_others,
         can_edit_others=can_edit_others,
-        for_sale=for_sale,
-        working=working,
-        sold=sold,
-        invalid=invalid,
-        for_sale_count=len(for_sale),
-        working_count=len(working),
-        sold_count=len(sold),
-        invalid_count=len(invalid),
+        for_sale=for_sale, working=working, sold=sold, invalid=invalid,
+        for_sale_count=len(for_sale), working_count=len(working),
+        sold_count=len(sold), invalid_count=len(invalid),
     )
 
 
