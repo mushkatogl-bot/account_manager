@@ -1264,25 +1264,27 @@ function copyPassword(event) {
             </div>
           </div>
 
-          <!-- УСТРОЙСТВА -->
-          <label class="form-label fw-bold">📱 Устройство почты</label>
-          <div class="mb-3">
-            <div class="form-check form-check-inline">
-              <input class="form-check-input" type="checkbox" name="device" value="android"
-                     id="fdev_android" {% if 'android' in filter_devices %}checked{% endif %}>
-              <label class="form-check-label" for="fdev_android">🤖 Android</label>
+                      <!-- УСТРОЙСТВО -->
+            <div class="col-12">
+              <hr>
+              <label class="form-label">Почта</label>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" name="device_android" id="e_device_android">
+                <label class="form-check-label" for="e_device_android">🤖 Android</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" name="device_iphone11" id="e_device_iphone11">
+                <label class="form-check-label" for="e_device_iphone11">📱 iPhone 11</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" name="device_iphone15" id="e_device_iphone15">
+                <label class="form-check-label" for="e_device_iphone15">📱 iPhone 15</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" name="is_on_pc" id="e_is_on_pc">
+                <label class="form-check-label" for="e_is_on_pc">💻 на ПК</label>
+              </div>
             </div>
-            <div class="form-check form-check-inline">
-              <input class="form-check-input" type="checkbox" name="device" value="iphone11"
-                     id="fdev_ip11" {% if 'iphone11' in filter_devices %}checked{% endif %}>
-              <label class="form-check-label" for="fdev_ip11">📱 iPhone 11</label>
-            </div>
-            <div class="form-check form-check-inline">
-              <input class="form-check-input" type="checkbox" name="device" value="iphone15"
-                     id="fdev_ip15" {% if 'iphone15' in filter_devices %}checked{% endif %}>
-              <label class="form-check-label" for="fdev_ip15">📱 iPhone 15</label>
-            </div>
-          </div>
 
           <!-- ОПЛАТА / СКРИНЫ -->
           <div class="row mb-3">
