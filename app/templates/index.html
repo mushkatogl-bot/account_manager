@@ -266,7 +266,7 @@
                      class="form-control" placeholder="По умолчанию: 2.00">
             </div>
 
-            <!-- УСТРОЙСТВО (только один раз!) -->
+                        <!-- УСТРОЙСТВО -->
             <div class="col-12">
               <hr>
               <label class="form-label">Почта</label>
@@ -281,6 +281,10 @@
               <div class="form-check form-check-inline">
                 <input class="form-check-input" type="checkbox" name="device_iphone15" id="add_device_iphone15">
                 <label class="form-check-label" for="add_device_iphone15">📱 iPhone 15</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" name="is_on_pc" id="add_is_on_pc">
+                <label class="form-check-label" for="add_is_on_pc">💻 на ПК</label>
               </div>
             </div>
 
@@ -438,21 +442,25 @@
               </div>
             </div>
 
-            <!-- УСТРОЙСТВО (только один раз!) -->
+                        <!-- УСТРОЙСТВО -->
             <div class="col-12">
               <hr>
               <label class="form-label">Почта</label>
               <div class="form-check form-check-inline">
-                <input class="form-check-input" type="checkbox" name="device_android" id="e_device_android">
-                <label class="form-check-label" for="e_device_android">🤖 Android</label>
+                <input class="form-check-input" type="checkbox" name="device_android" id="add_device_android">
+                <label class="form-check-label" for="add_device_android">🤖 Android</label>
               </div>
               <div class="form-check form-check-inline">
-                <input class="form-check-input" type="checkbox" name="device_iphone11" id="e_device_iphone11">
-                <label class="form-check-label" for="e_device_iphone11">📱 iPhone 11</label>
+                <input class="form-check-input" type="checkbox" name="device_iphone11" id="add_device_iphone11">
+                <label class="form-check-label" for="add_device_iphone11">📱 iPhone 11</label>
               </div>
               <div class="form-check form-check-inline">
-                <input class="form-check-input" type="checkbox" name="device_iphone15" id="e_device_iphone15">
-                <label class="form-check-label" for="e_device_iphone15">📱 iPhone 15</label>
+                <input class="form-check-input" type="checkbox" name="device_iphone15" id="add_device_iphone15">
+                <label class="form-check-label" for="add_device_iphone15">📱 iPhone 15</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" name="is_on_pc" id="add_is_on_pc">
+                <label class="form-check-label" for="add_is_on_pc">💻 на ПК</label>
               </div>
             </div>
 
@@ -787,6 +795,7 @@ async function openAccount(id) {
 
         document.getElementById("e_is_top").checked = data.is_top;
         document.getElementById("e_payment_sent").checked = data.payment_sent;
+        document.getElementById("e_is_on_pc").checked = data.is_on_pc;
 
     document.getElementById("e_device_android").checked = data.device_android;
     document.getElementById("e_device_iphone11").checked = data.device_iphone11;
