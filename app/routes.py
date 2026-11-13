@@ -73,7 +73,6 @@ def index():
 
     # --- Фильтр по устройствам ---
     if filter_devices:
-        # Если выбрано хоть одно устройство — нужен ИЛИ
         from sqlalchemy import or_
         conditions = []
         if "android" in filter_devices:
@@ -93,7 +92,6 @@ def index():
 
     # --- Скрины (есть в любом тикете) ---
     if filter_screens:
-        from app.models import SupportTicket
         subq_has = db.session.query(SupportTicket.account_id).filter(SupportTicket.screens_sent == True)
         if filter_screens == "yes":
             query = query.filter(Account.id.in_(subq_has))
@@ -190,8 +188,7 @@ def account_add():
         created_by=current_user.id,
     )
 
-    # --- Support (новые поля) ---
-    a.screens_sent = request.form.get("screens_sent") == "on"
+    # --- Support (простые поля) ---
     a.payment_sent = request.form.get("payment_sent") == "on"
     a.is_on_pc = request.form.get("is_on_pc") == "on"
 
@@ -736,12 +733,12 @@ def ticket_delete(ticket_id):
 
 
 # ============================================================
-# ============================================================
 # ВЫГРУЗКА СТАТИСТИКИ В EXCEL
 # ============================================================
 from io import BytesIO
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.utils import get_column_letter
 
 
 @bp.route("/export/excel", methods=["POST"])
@@ -861,18 +858,15 @@ def export_excel():
             days_between = (tickets[1].sent_date - tickets[0].sent_date).days
         ws.cell(row=row_idx, column=col, value=days_between)
 
-    # Ширина колонок
-        # Ширина колонок
-        from openpyxl.utils import get_column_letter
+    # Ширина колонок (выровнено на 4 пробела — на уровне функции)
+    widths = [15, 30, 15, 12, 15, 8, 40, 35, 12]
+    for _ in range(5):
+        widths += [15, 10, 40, 20, 15]
+    widths += [15]
 
-        widths = [15, 30, 15, 12, 15, 8, 40, 35, 12]
-        for _ in range(5):
-            widths += [15, 10, 40, 20, 15]
-        widths += [15]
-
-        for col, width in enumerate(widths, 1):
-            letter = get_column_letter(col)  # A, B, ..., Z, AA, AB, ... AZ, BA...
-            ws.column_dimensions[letter].width = width
+    for col, width in enumerate(widths, 1):
+        letter = get_column_letter(col)
+        ws.column_dimensions[letter].width = width
 
     # --- Отправка файла ---
     buf = BytesIO()
