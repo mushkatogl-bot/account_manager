@@ -69,6 +69,14 @@ class Account(db.Model):
     sold_date = db.Column(db.DateTime, nullable=True)
     sold_price = db.Column(db.Float, nullable=True)
 
+    # --- Работа ---
+    is_work = db.Column(db.Boolean, default=False)
+    earned_amount = db.Column(db.Float, nullable=True)
+    work_started_at = db.Column(db.DateTime, nullable=True)
+
+    # --- Оплата (сумма) ---
+    payment_amount = db.Column(db.Float, nullable=True)
+
     # --- Бухгалтерия: стоимость номера ---
     cost_amount = db.Column(db.Float, nullable=True)  # если NULL → берём $2
 
@@ -132,30 +140,39 @@ class Account(db.Model):
     def tab_category(self):
         """
         К какой вкладке относится аккаунт.
-        Возвращает: 'for_sale', 'working', 'sold', 'invalid'
+        Возвращает: 'work', 'sold', 'invalid', 'working', 'pending'
+        Приоритет: work > sold > invalid > working > pending
         """
-        # Проданные — приоритет №1
+        # 1. WORK — наивысший приоритет
+        if self.is_work:
+            return "work"
+
+        # 2. Проданные
         if self.sold or self.status == "SALE":
             return "sold"
 
-        # Невалидные — приоритет №2
-        if self.status in ("Anmelden", "ALL gesperrt"):
+        # 3. Полностью заблокированные
+        if self.status == "ALL gesperrt":
             return "invalid"
 
-        # FOR SALE — Pending TOP и TOP online
-        if self.status in ("Pending TOP", "TOP online"):
-            return "for_sale"
+        # 4. В работе — топовые
+        if self.status in ("unloc online", "TOP online", "Pending TOP"):
+            return "working"
 
-        # Всё остальное — в работе (online, Gesperrt, unloc online, online Loshung)
-        return "working"
+        # 5. Всё остальное — pending
+        return "pending"
 
     @property
-    def is_for_sale_tab(self):
-        return self.tab_category == "for_sale"
+    def is_work_tab(self):
+        return self.tab_category == "work"
 
     @property
     def is_working_tab(self):
         return self.tab_category == "working"
+
+    @property
+    def is_pending_tab(self):
+        return self.tab_category == "pending"
 
     @property
     def is_sold_tab(self):

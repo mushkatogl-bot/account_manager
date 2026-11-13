@@ -108,11 +108,12 @@ def index():
 
     all_accounts = query.all()
 
-    # --- Вкладки ---
-    for_sale = [a for a in all_accounts if a.is_for_sale_tab]
-    working  = [a for a in all_accounts if a.is_working_tab]
-    sold     = [a for a in all_accounts if a.is_sold_tab]
-    invalid  = [a for a in all_accounts if a.is_invalid_tab]
+    # --- Вкладки (5 штук) ---
+    work    = [a for a in all_accounts if a.is_work_tab]
+    working = [a for a in all_accounts if a.is_working_tab]
+    pending = [a for a in all_accounts if a.is_pending_tab]
+    sold    = [a for a in all_accounts if a.is_sold_tab]
+    invalid = [a for a in all_accounts if a.is_invalid_tab]
 
     # --- Список юзеров ---
     users_for_filter = []
@@ -138,8 +139,8 @@ def index():
         users_for_filter=users_for_filter,
         can_view_others=can_view_others,
         can_edit_others=can_edit_others,
-        for_sale=for_sale, working=working, sold=sold, invalid=invalid,
-        for_sale_count=len(for_sale), working_count=len(working),
+        work=work, working=working, pending=pending, sold=sold, invalid=invalid,
+        work_count=len(work), working_count=len(working), pending_count=len(pending),
         sold_count=len(sold), invalid_count=len(invalid),
     )
 
@@ -200,6 +201,26 @@ def account_add():
     # --- ТОП ---
     a.is_top = request.form.get("is_top") == "on"
 
+    # --- Работа ---
+    a.is_work = request.form.get("is_work") == "on"
+    earned_str = request.form.get("earned_amount", "").strip()
+    try:
+        a.earned_amount = float(earned_str) if earned_str else None
+    except ValueError:
+        a.earned_amount = None
+    if a.is_work:
+        a.work_started_at = datetime.utcnow()
+
+    # --- Оплата (сумма) ---
+    pay_str = request.form.get("payment_amount", "").strip()
+    try:
+        a.payment_amount = float(pay_str) if pay_str else None
+    except ValueError:
+        a.payment_amount = None
+    # Если сумма указана — галка автоматически
+    if a.payment_amount and a.payment_amount > 0:
+        a.payment_sent = True
+
     if status == "SALE":
         a.sold = True
         a.sold_date = datetime.utcnow()
@@ -232,7 +253,8 @@ def account_add():
     db.session.commit()
 
     flash(f"Аккаунт {email} добавлен", "success")
-    return redirect(url_for("routes.index"))
+    current_tab = request.form.get("current_tab", "working")
+    return redirect(url_for("routes.index", tab=current_tab))
 
 
 # ============================================================
@@ -262,6 +284,9 @@ def account_json(acc_id):
         "cookies_text": a.cookies_text or "",
         "is_on_pc": a.is_on_pc,
         "payment_sent": a.payment_sent,
+        "is_work": a.is_work,
+        "earned_amount": a.earned_amount if a.earned_amount is not None else "",
+        "payment_amount": a.payment_amount if a.payment_amount is not None else "",
         "device_android": a.device_android,
         "device_iphone11": a.device_iphone11,
         "device_iphone15": a.device_iphone15,
@@ -361,6 +386,31 @@ def account_edit(acc_id):
     # --- ТОП ---
     a.is_top = request.form.get("is_top") == "on"
 
+    # --- Работа ---
+    old_is_work = a.is_work
+    a.is_work = request.form.get("is_work") == "on"
+    earned_str = request.form.get("earned_amount", "").strip()
+    try:
+        a.earned_amount = float(earned_str) if earned_str else None
+    except ValueError:
+        a.earned_amount = None
+
+    # Если только что поставили WORK — фиксируем время
+    if a.is_work and not old_is_work:
+        a.work_started_at = datetime.utcnow()
+    elif not a.is_work:
+        a.work_started_at = None
+
+    # --- Оплата (сумма) ---
+    pay_str = request.form.get("payment_amount", "").strip()
+    try:
+        a.payment_amount = float(pay_str) if pay_str else None
+    except ValueError:
+        a.payment_amount = None
+    # Если сумма указана — галка автоматически
+    if a.payment_amount and a.payment_amount > 0:
+        a.payment_sent = True
+
     # --- Куки ---
     if "cookies_text" in request.form:
         cookies = request.form["cookies_text"].strip()
@@ -397,7 +447,9 @@ def account_edit(acc_id):
     db.session.commit()
 
     flash(f"Аккаунт {a.email} обновлён", "success")
-    return redirect(url_for("routes.index"))
+    # Сохраняем текущую вкладку
+    current_tab = request.form.get("current_tab", "working")
+    return redirect(url_for("routes.index", tab=current_tab))
 
 
 # ============================================================
@@ -858,7 +910,7 @@ def export_excel():
             days_between = (tickets[1].sent_date - tickets[0].sent_date).days
         ws.cell(row=row_idx, column=col, value=days_between)
 
-    # Ширина колонок (выровнено на 4 пробела — на уровне функции)
+    # Ширина колонок
     widths = [15, 30, 15, 12, 15, 8, 40, 35, 12]
     for _ in range(5):
         widths += [15, 10, 40, 20, 15]
