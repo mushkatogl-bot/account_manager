@@ -501,12 +501,11 @@ def cookies_download(acc_id):
     date_str = a.reg_date.strftime("%Y-%m-%d") if a.reg_date else "no-date"
     filename = f"{safe_email}_{safe_pass}_{date_str}.txt"
 
+    # Шапка: логин:пароль (от аккаунта) + куки
     header = (
         "log:pass\n"
-        "mail:pass\n"
         "\n"
         f"{a.email}:{a.account_password}\n"
-        f"{a.email}:{a.email_password}\n"
         "\n"
     )
 
