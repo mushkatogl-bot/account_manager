@@ -92,9 +92,21 @@ class Account(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # --- Связи ---
+    # --- Связи (с каскадным удалением) ---
     unsubscribes = db.relationship(
         "Unsubscribe",
+        backref="account",
+        cascade="all, delete-orphan",
+        lazy=True,
+    )
+    support_tickets = db.relationship(
+        "SupportTicket",
+        backref="account",
+        cascade="all, delete-orphan",
+        lazy=True,
+    )
+    status_history = db.relationship(
+        "StatusHistory",
         backref="account",
         cascade="all, delete-orphan",
         lazy=True,
@@ -365,7 +377,8 @@ class StatusHistory(db.Model):
     changed_by_username = db.Column(db.String(64), nullable=True)
     changed_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    account = db.relationship("Account", backref="status_history")
+    # Связь описана в Account через backref="status_history"
+    # (каскадное удаление настроено там)
 
     def __repr__(self):
         return f"<StatusHistory {self.account_id}: {self.old_status}→{self.new_status}>"
@@ -386,7 +399,8 @@ class SupportTicket(db.Model):
     outcome = db.Column(db.String(32), default="pending")   # pending / unlocked / all_gesperrt
     resolved_date = db.Column(db.Date, nullable=True)       # дата решения
 
-    account = db.relationship("Account", backref="support_tickets")
+    # Связь описана в Account через backref="support_tickets"
+    # (каскадное удаление настроено там)
 
     def __repr__(self):
         return f"<SupportTicket {self.account_id} #{self.letter_number} [{self.outcome}]>"
