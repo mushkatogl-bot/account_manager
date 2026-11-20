@@ -900,15 +900,20 @@ async function loadUnsubs(accId) {
         container.innerHTML = '<div class="text-muted small">Пока нет отписок</div>';
         return;
     }
-    container.innerHTML = list.map(u => `
+        container.innerHTML = list.map(u => `
         <div class="d-flex justify-content-between align-items-center border rounded p-2 mb-1">
-            <div>
+            <div style="flex:1;">
                 <strong>${u.email || '—'}</strong>
                 ${u.date ? `<small class="text-muted"> · ${u.date}${u.time ? ' ' + u.time : ''}</small>` : ''}
+                ${u.paired_id ? '<span class="badge bg-info ms-1" title="Связанная">🔗</span>' : ''}
                 ${u.comment ? `<br><small>${u.comment}</small>` : ''}
             </div>
-            <button type="button" class="btn btn-sm btn-outline-danger"
-                    onclick="deleteUnsub(${u.id})">🗑</button>
+            <div>
+                <button type="button" class="btn btn-sm btn-outline-primary"
+                        onclick="editUnsub(${u.id}, '${u.date}', '${u.time}', '${(u.comment || '').replace(/'/g, "\\'")}')">✏️</button>
+                <button type="button" class="btn btn-sm btn-outline-danger"
+                        onclick="deleteUnsub(${u.id})">🗑</button>
+            </div>
         </div>
     `).join("");
 }
@@ -944,6 +949,26 @@ async function deleteUnsub(id) {
     if (!confirm("Удалить эту отписку?")) return;
     const res = await fetch(`/unsubs/${id}/delete`, { method: "POST" });
     if (!res.ok) { alert("Ошибка удаления"); return; }
+    const accId = document.getElementById("editForm").dataset.accId;
+    loadUnsubs(accId);
+}
+
+async function editUnsub(id, date, time, comment) {
+    const newDate = prompt("Дата (YYYY-MM-DD):", date);
+    if (newDate === null) return;
+    const newTime = prompt("Время (HH:MM):", time);
+    if (newTime === null) return;
+    const newComment = prompt("Комментарий:", comment);
+    if (newComment === null) return;
+
+    const formData = new FormData();
+    formData.append("date", newDate);
+    formData.append("time", newTime);
+    formData.append("comment", newComment);
+
+    const res = await fetch(`/unsubs/${id}/edit`, { method: "POST", body: formData });
+    if (!res.ok) { alert("Ошибка редактирования"); return; }
+
     const accId = document.getElementById("editForm").dataset.accId;
     loadUnsubs(accId);
 }

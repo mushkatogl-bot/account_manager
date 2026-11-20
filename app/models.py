@@ -309,6 +309,7 @@ class Unsubscribe(db.Model):
     time = db.Column(db.String(8), nullable=True)
     comment = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    paired_id = db.Column(db.Integer, nullable=True)  # id зеркальной отписки
 
     @property
     def datetime_full(self):

@@ -538,6 +538,7 @@ def unsubs_json(acc_id):
             "date": u.date.strftime("%Y-%m-%d") if u.date else "",
             "time": u.time or "",
             "comment": u.comment or "",
+            "paired_id": u.paired_id,
         }
         for u in a.unsubscribes
     ]
@@ -563,14 +564,36 @@ def unsubs_add(acc_id):
         except ValueError:
             pass
 
-    u = Unsubscribe(
+    # 1. Создаём отписку у A
+    u_a = Unsubscribe(
         account_id=a.id,
         email=email,
         date=unsub_date,
         time=time_str,
         comment=comment,
     )
-    db.session.add(u)
+    db.session.add(u_a)
+    db.session.flush()
+
+    # 2. Ищем B по email
+    if email:
+        account_b = Account.query.filter_by(email=email).first()
+        if account_b and account_b.id != a.id:
+            # 3. Создаём зеркальную у B
+            u_b = Unsubscribe(
+                account_id=account_b.id,
+                email=a.email,
+                date=unsub_date,
+                time=time_str,
+                comment=comment,
+                paired_id=u_a.id,
+            )
+            db.session.add(u_b)
+            db.session.flush()
+
+            # 4. Связываем u_a с u_b
+            u_a.paired_id = u_b.id
+
     db.session.commit()
 
     log = Log(
@@ -583,7 +606,7 @@ def unsubs_add(acc_id):
     db.session.add(log)
     db.session.commit()
 
-    return {"ok": True, "id": u.id}
+    return {"ok": True, "id": u_a.id}
 
 
 # ============================================================
@@ -594,6 +617,13 @@ def unsubs_add(acc_id):
 def unsubs_delete(unsub_id):
     u = Unsubscribe.query.get_or_404(unsub_id)
     acc_email = u.account.email if u.account else ""
+
+    # Если есть пара — удаляем обе
+    if u.paired_id:
+        paired = Unsubscribe.query.get(u.paired_id)
+        if paired:
+            db.session.delete(paired)
+
     db.session.delete(u)
     db.session.commit()
 
@@ -603,6 +633,59 @@ def unsubs_delete(unsub_id):
         action="delete_unsubscribe",
         target=acc_email,
         details=f"ID отписки: {unsub_id}",
+    )
+    db.session.add(log)
+    db.session.commit()
+
+    return {"ok": True}
+
+# ============================================================
+# ОТПИСКИ: РЕДАКТИРОВАТЬ
+# ============================================================
+@bp.route("/unsubs/<int:unsub_id>/edit", methods=["POST"])
+@login_required
+def unsubs_edit(unsub_id):
+    u = Unsubscribe.query.get_or_404(unsub_id)
+
+    # Проверка прав — владелец аккаунта
+    a = u.account
+    is_admin = (current_user.role == "admin")
+    can_edit_others = is_admin or current_user.can_edit_others
+    if a.created_by != current_user.id and not can_edit_others:
+        return {"error": "forbidden"}, 403
+
+    date_str = request.form.get("date", "").strip()
+    time_str = request.form.get("time", "").strip() or None
+    comment = request.form.get("comment", "").strip() or None
+
+    unsub_date = None
+    if date_str:
+        try:
+            unsub_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except ValueError:
+            pass
+
+    # Обновляем текущую
+    u.date = unsub_date
+    u.time = time_str
+    u.comment = comment
+
+    # Обновляем зеркальную (если есть)
+    if u.paired_id:
+        paired = Unsubscribe.query.get(u.paired_id)
+        if paired:
+            paired.date = unsub_date
+            paired.time = time_str
+            paired.comment = comment
+
+    db.session.commit()
+
+    log = Log(
+        user_id=current_user.id,
+        username=current_user.username,
+        action="edit_unsubscribe",
+        target=a.email if a else "",
+        details=f"ID: {unsub_id}",
     )
     db.session.add(log)
     db.session.commit()
