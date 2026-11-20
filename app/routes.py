@@ -639,6 +639,7 @@ def unsubs_delete(unsub_id):
 
     return {"ok": True}
 
+
 # ============================================================
 # ОТПИСКИ: РЕДАКТИРОВАТЬ
 # ============================================================
@@ -876,6 +877,160 @@ from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
 
 
+@bp.route("/export/excel", methods=["POST"])
+@login_required
+def export_excel():
+    # --- Права ---
+    is_admin = (current_user.role == "admin")
+    can_view_others = is_admin or current_user.can_view_others
+
+    # --- Фильтры ---
+    user_filter = request.form.get("user_filter", "").strip()
+    date_from_str = request.form.get("date_from", "").strip()
+    date_to_str = request.form.get("date_to", "").strip()
+    statuses = request.form.getlist("status")  # список выбранных статусов
+
+    query = Account.query
+
+    # Права
+    if not can_view_others:
+        query = query.filter(Account.created_by == current_user.id)
+    elif user_filter and user_filter != "all":
+        try:
+            uid = int(user_filter)
+            query = query.filter(Account.created_by == uid)
+        except ValueError:
+            pass
+
+    # Дата регистрации
+    if date_from_str:
+        try:
+            d_from = datetime.strptime(date_from_str, "%Y-%m-%d").date()
+            query = query.filter(Account.reg_date >= d_from)
+        except ValueError:
+            pass
+    if date_to_str:
+        try:
+            d_to = datetime.strptime(date_to_str, "%Y-%m-%d").date()
+            query = query.filter(Account.reg_date <= d_to)
+        except ValueError:
+            pass
+
+    # Статусы
+    if statuses:
+        query = query.filter(Account.status.in_(statuses))
+
+    accounts = query.order_by(Account.reg_date.desc()).all()
+
+    # --- Генерация Excel ---
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Аккаунты"
+
+    headers = [
+        "Дата регистрации", "Email", "Телефон", "Стоимость номера ($)",
+        "Текущий статус", "ТОП", "История статусов",
+        "Комментарий к аккаунту",
+        "Оплата отправлена",
+    ]
+    # Тикеты — 5 штук по 5 колонок
+    for i in range(1, 6):
+        headers += [
+            f"Тикет {i}: дата", f"Тикет {i}: скрины", f"Тикет {i}: текст",
+            f"Тикет {i}: результат", f"Тикет {i}: дата решения"
+        ]
+    # Дополнительно
+    headers.append("Дней между 1 и 2 письмом")
+
+    # Заголовки
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=header)
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill("solid", fgColor="4B0082")
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+
+    # Данные
+    for row_idx, a in enumerate(accounts, 2):
+        # История
+        history_str = "; ".join([
+            f"{h.changed_at.strftime('%d.%m.%Y')}: {h.old_status or '—'}→{h.new_status}"
+            for h in a.status_history_display
+        ])
+
+        col = 1
+        ws.cell(row=row_idx, column=col, value=a.reg_date.strftime("%d.%m.%Y") if a.reg_date else ""); col += 1
+        ws.cell(row=row_idx, column=col, value=a.email or ""); col += 1
+        ws.cell(row=row_idx, column=col, value=a.phone or ""); col += 1
+        ws.cell(row=row_idx, column=col, value=a.cost_amount if a.cost_amount is not None else 2.0); col += 1
+        ws.cell(row=row_idx, column=col, value=a.status or ""); col += 1
+        ws.cell(row=row_idx, column=col, value="👑" if a.is_top else ""); col += 1
+        ws.cell(row=row_idx, column=col, value=history_str); col += 1
+        ws.cell(row=row_idx, column=col, value=a.comment or ""); col += 1
+        ws.cell(row=row_idx, column=col, value="Да" if a.payment_sent else "Нет"); col += 1
+
+        # Сортируем тикеты
+        tickets = sorted(a.support_tickets, key=lambda t: t.letter_number)
+
+        for i in range(5):
+            if i < len(tickets):
+                t = tickets[i]
+                outcome_text = {
+                    "pending": "⏳ Ожидание",
+                    "unlocked": "✅ UNLOCK",
+                    "all_gesperrt": "❌ ALL Gesperrt",
+                }.get(t.outcome, t.outcome)
+                ws.cell(row=row_idx, column=col, value=t.sent_date.strftime("%d.%m.%Y") if t.sent_date else ""); col += 1
+                ws.cell(row=row_idx, column=col, value="Да" if t.screens_sent else "Нет"); col += 1
+                ws.cell(row=row_idx, column=col, value=t.text or ""); col += 1
+                ws.cell(row=row_idx, column=col, value=outcome_text); col += 1
+                ws.cell(row=row_idx, column=col, value=t.resolved_date.strftime("%d.%m.%Y") if t.resolved_date else ""); col += 1
+            else:
+                for _ in range(5):
+                    ws.cell(row=row_idx, column=col, value=""); col += 1
+
+        # Дней между тикет 1 и 2
+        days_between = ""
+        if len(tickets) >= 2 and tickets[0].sent_date and tickets[1].sent_date:
+            days_between = (tickets[1].sent_date - tickets[0].sent_date).days
+        ws.cell(row=row_idx, column=col, value=days_between)
+
+    # Ширина колонок
+    widths = [15, 30, 15, 12, 15, 8, 40, 35, 12]
+    for _ in range(5):
+        widths += [15, 10, 40, 20, 15]
+    widths += [15]
+
+    for col, width in enumerate(widths, 1):
+        letter = get_column_letter(col)
+        ws.column_dimensions[letter].width = width
+
+    # --- Отправка файла ---
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    filename = f"accounts_export_{datetime.utcnow().strftime('%Y%m%d_%H%M')}.xlsx"
+
+    log = Log(
+        user_id=current_user.id,
+        username=current_user.username,
+        action="export_excel",
+        target="",
+        details=f"Выгружено: {len(accounts)}",
+    )
+    db.session.add(log)
+    db.session.commit()
+
+    return Response(
+        buf.read(),
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+# ============================================================
+# ВЫГРУЗКА СТАТИСТИКИ В TXT
+# ============================================================
 @bp.route("/export/txt", methods=["POST"])
 @login_required
 def export_txt():
@@ -978,6 +1133,8 @@ def export_txt():
         lines.append("")
         lines.append("-" * 70)
         lines.append("")
+
+    full_text = "\n".join(lines)
 
     # Лог
     log = Log(
