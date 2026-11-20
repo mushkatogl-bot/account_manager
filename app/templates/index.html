@@ -5,8 +5,8 @@
     <h3 class="m-0">Аккаунты</h3>
     <div>
         <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#exportModal">
-    📄 Выгрузить статистику
-</button>
+            📄 Выгрузить статистику
+        </button>
         <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addModal">
             + Добавить аккаунт
         </button>
@@ -102,10 +102,11 @@
 
             {% if rows %}
                 {% for a in rows %}
-                <tr style="cursor:pointer;"
+                {% set can_open = (a.created_by == current_user.id) or can_edit_others %}
+                <tr style="cursor:{% if can_open %}pointer{% else %}default{% endif %};"
     class="account-row {% if a.needs_review %}table-warning{% endif %}"
     data-acc-id="{{ a.id }}"
-    onclick="openAccount({{ a.id }})">
+    {% if can_open %}onclick="openAccount({{ a.id }})"{% endif %}>
                     <td>
                         {{ a.reg_date.strftime('%d.%m.%Y') }}
                         {% if a.reg_time %}<br><small class="text-muted">{{ a.reg_time }}</small>{% endif %}
@@ -172,11 +173,15 @@
                         {% endif %}
                     </td>
                     <td class="text-center">
+                        {% if (a.created_by == current_user.id) or can_edit_others %}
                         <button type="button" class="btn-info-icon"
                                 onclick="event.stopPropagation(); toggleTooltip({{ a.id }}, this);"
                                 title="Краткая инфа">
                             ℹ️
                         </button>
+                        {% else %}
+                        <span class="text-muted" title="Нет прав">🔒</span>
+                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}
@@ -794,6 +799,11 @@ async function openAccount(id) {
     if (!res.ok) { alert("Не удалось загрузить аккаунт"); return; }
     const data = await res.json();
 
+    if (data.restricted) {
+        alert("У вас нет прав на просмотр этого аккаунта");
+        return;
+    }
+
     document.getElementById("editForm").action = `/account/${id}/edit`;
     document.getElementById("editForm").dataset.accId = id;
     document.getElementById("edit_current_tab").value = "{{ tab }}";
@@ -1141,13 +1151,10 @@ document.addEventListener("click", function(e) {
     const tooltip = document.getElementById("accountTooltip");
     if (tooltip.style.display !== "block") return;
 
-    // Если клик внутри тултипа — не закрываем
     if (tooltip.contains(e.target)) return;
 
-    // Если клик по кнопке ℹ️ — не закрываем (обработается в toggleTooltip)
     if (e.target.classList.contains("btn-info-icon")) return;
 
-    // Иначе — закрываем
     hideTooltip();
 });
 
@@ -1155,19 +1162,22 @@ document.addEventListener("click", function(e) {
 async function toggleTooltip(accId, btn) {
     const tooltip = document.getElementById("accountTooltip");
 
-    // Если открыт для этого же аккаунта — закрываем
     if (tooltip.style.display === "block" && currentAccId === accId) {
         hideTooltip();
         return;
     }
 
-    // Загружаем данные (кэш)
     let data = tooltipDataCache[accId];
     if (!data) {
         const res = await fetch(`/account/${accId}/json`);
         if (!res.ok) { alert("Не удалось загрузить данные"); return; }
         data = await res.json();
         tooltipDataCache[accId] = data;
+    }
+
+    if (data.restricted) {
+        alert("У вас нет прав на просмотр этого аккаунта");
+        return;
     }
 
     currentAccId = accId;
