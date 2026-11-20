@@ -876,9 +876,12 @@ from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
 
 
-@bp.route("/export/excel", methods=["POST"])
+@bp.route("/export/txt", methods=["POST"])
 @login_required
-def export_excel():
+def export_txt():
+    from io import BytesIO
+    from datetime import datetime
+
     # --- Права ---
     is_admin = (current_user.role == "admin")
     can_view_others = is_admin or current_user.can_view_others
@@ -887,7 +890,7 @@ def export_excel():
     user_filter = request.form.get("user_filter", "").strip()
     date_from_str = request.form.get("date_from", "").strip()
     date_to_str = request.form.get("date_to", "").strip()
-    statuses = request.form.getlist("status")  # список выбранных статусов
+    statuses = request.form.getlist("status")
 
     query = Account.query
 
@@ -921,107 +924,76 @@ def export_excel():
 
     accounts = query.order_by(Account.reg_date.desc()).all()
 
-    # --- Генерация Excel ---
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Аккаунты"
+    # --- Генерация текста ---
+    lines = []
+    lines.append("=" * 70)
+    lines.append(f"ВЫГРУЗКА АККАУНТОВ")
+    lines.append(f"Дата выгрузки: {datetime.utcnow().strftime('%d.%m.%Y %H:%M')}")
+    lines.append(f"Пользователь: {current_user.username}")
+    lines.append(f"Всего аккаунтов: {len(accounts)}")
+    lines.append("=" * 70)
+    lines.append("")
 
-    headers = [
-        "Дата регистрации", "Email", "Телефон", "Стоимость номера ($)",
-        "Текущий статус", "ТОП", "История статусов",
-        "Комментарий к аккаунту",
-        "Оплата отправлена",
-    ]
-    # Тикеты — 5 штук по 5 колонок
-    for i in range(1, 6):
-        headers += [
-            f"Тикет {i}: дата", f"Тикет {i}: скрины", f"Тикет {i}: текст",
-            f"Тикет {i}: результат", f"Тикет {i}: дата решения"
-        ]
-    # Дополнительно
-    headers.append("Дней между 1 и 2 письмом")
+    for i, a in enumerate(accounts, 1):
+        lines.append(f"--- АККАУНТ #{i} (ID: {a.id}) ---")
+        lines.append(f"Дата регистрации: {a.reg_date.strftime('%d.%m.%Y') if a.reg_date else '—'}")
+        lines.append(f"Email: {a.email or '—'}")
+        lines.append(f"Телефон: {a.phone or '—'}")
+        lines.append(f"Стоимость номера: ${a.effective_cost:.2f}")
+        lines.append(f"Статус: {a.status or '—'}")
 
-    # Заголовки
-    for col, header in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=col, value=header)
-        cell.font = Font(bold=True, color="FFFFFF")
-        cell.fill = PatternFill("solid", fgColor="4B0082")
-        cell.alignment = Alignment(horizontal="center", vertical="center")
+        if a.comment:
+            lines.append(f"Комментарий: {a.comment}")
 
-    # Данные
-    for row_idx, a in enumerate(accounts, 2):
-        # История
-        history_str = "; ".join([
-            f"{h.changed_at.strftime('%d.%m.%Y')}: {h.old_status or '—'}→{h.new_status}"
-            for h in a.status_history_display
-        ])
-
-        col = 1
-        ws.cell(row=row_idx, column=col, value=a.reg_date.strftime("%d.%m.%Y") if a.reg_date else ""); col += 1
-        ws.cell(row=row_idx, column=col, value=a.email or ""); col += 1
-        ws.cell(row=row_idx, column=col, value=a.phone or ""); col += 1
-        ws.cell(row=row_idx, column=col, value=a.cost_amount if a.cost_amount is not None else 2.0); col += 1
-        ws.cell(row=row_idx, column=col, value=a.status or ""); col += 1
-        ws.cell(row=row_idx, column=col, value="👑" if a.is_top else ""); col += 1
-        ws.cell(row=row_idx, column=col, value=history_str); col += 1
-        ws.cell(row=row_idx, column=col, value=a.comment or ""); col += 1
-        ws.cell(row=row_idx, column=col, value="Да" if a.payment_sent else "Нет"); col += 1
-
-        # Сортируем тикеты
-        tickets = sorted(a.support_tickets, key=lambda t: t.letter_number)
-
-        for i in range(5):
-            if i < len(tickets):
-                t = tickets[i]
-                outcome_text = {
+        # Тикеты
+        if a.support_tickets:
+            tickets = sorted(a.support_tickets, key=lambda t: t.letter_number)
+            lines.append(f"Обращения в ТП ({len(tickets)} шт.):")
+            for t in tickets:
+                outcome_map = {
                     "pending": "⏳ Ожидание",
                     "unlocked": "✅ UNLOCK",
                     "all_gesperrt": "❌ ALL Gesperrt",
-                }.get(t.outcome, t.outcome)
-                ws.cell(row=row_idx, column=col, value=t.sent_date.strftime("%d.%m.%Y") if t.sent_date else ""); col += 1
-                ws.cell(row=row_idx, column=col, value="Да" if t.screens_sent else "Нет"); col += 1
-                ws.cell(row=row_idx, column=col, value=t.text or ""); col += 1
-                ws.cell(row=row_idx, column=col, value=outcome_text); col += 1
-                ws.cell(row=row_idx, column=col, value=t.resolved_date.strftime("%d.%m.%Y") if t.resolved_date else ""); col += 1
-            else:
-                for _ in range(5):
-                    ws.cell(row=row_idx, column=col, value=""); col += 1
+                }
+                outcome = outcome_map.get(t.outcome, t.outcome)
+                lines.append(f"  📨 Тикет #{t.letter_number}")
+                lines.append(f"     Дата письма: {t.sent_date.strftime('%d.%m.%Y') if t.sent_date else '—'}")
+                lines.append(f"     Результат: {outcome}")
+                if t.resolved_date:
+                    lines.append(f"     Дата решения: {t.resolved_date.strftime('%d.%m.%Y')}")
 
-        # Дней между тикет 1 и 2
-        days_between = ""
-        if len(tickets) >= 2 and tickets[0].sent_date and tickets[1].sent_date:
-            days_between = (tickets[1].sent_date - tickets[0].sent_date).days
-        ws.cell(row=row_idx, column=col, value=days_between)
+        # Отписки (коротко)
+        if a.unsubscribes:
+            lines.append(f"Отписки ({len(a.unsubscribes)} шт.):")
+            for u in a.unsubscribes:
+                unsub_str = f"  📨 {u.email or '—'}"
+                if u.date:
+                    unsub_str += f" — {u.date.strftime('%d.%m.%Y')}"
+                if u.time:
+                    unsub_str += f" {u.time}"
+                if u.paired_id:
+                    unsub_str += " 🔗"
+                lines.append(unsub_str)
 
-    # Ширина колонок
-    widths = [15, 30, 15, 12, 15, 8, 40, 35, 12]
-    for _ in range(5):
-        widths += [15, 10, 40, 20, 15]
-    widths += [15]
+        lines.append("")
+        lines.append("-" * 70)
+        lines.append("")
 
-    for col, width in enumerate(widths, 1):
-        letter = get_column_letter(col)
-        ws.column_dimensions[letter].width = width
-
-    # --- Отправка файла ---
-    buf = BytesIO()
-    wb.save(buf)
-    buf.seek(0)
-
-    filename = f"accounts_export_{datetime.utcnow().strftime('%Y%m%d_%H%M')}.xlsx"
-
+    # Лог
     log = Log(
         user_id=current_user.id,
         username=current_user.username,
-        action="export_excel",
+        action="export_txt",
         target="",
         details=f"Выгружено: {len(accounts)}",
     )
     db.session.add(log)
     db.session.commit()
 
+    filename = f"accounts_export_{datetime.utcnow().strftime('%Y%m%d_%H%M')}.txt"
+
     return Response(
-        buf.read(),
-        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        full_text,
+        mimetype="text/plain; charset=utf-8",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )

@@ -5,8 +5,8 @@
     <h3 class="m-0">Аккаунты</h3>
     <div>
         <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#exportModal">
-            📊 Выгрузить статистику
-        </button>
+    📄 Выгрузить статистику
+</button>
         <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addModal">
             + Добавить аккаунт
         </button>
@@ -561,9 +561,9 @@
 <div class="modal fade" id="exportModal" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content">
-      <form method="post" action="{{ url_for('routes.export_excel') }}">
+      <form method="post" action="{{ url_for('routes.export_txt') }}">
         <div class="modal-header">
-          <h5 class="modal-title">📊 Выгрузить статистику в Excel</h5>
+          <h5 class="modal-title">📊 Выгрузить статистику в TXT</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
@@ -631,7 +631,7 @@
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-          <button type="submit" class="btn btn-primary">⬇ Скачать Excel</button>
+          <button type="submit" class="btn btn-primary">⬇ Скачать TXT</button>
         </div>
       </form>
     </div>
