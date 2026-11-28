@@ -634,9 +634,16 @@
           </div>
 
         </div>
-        <div class="modal-footer">
+                <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-          <button type="submit" class="btn btn-primary">⬇ Скачать TXT</button>
+          <button type="submit" formaction="{{ url_for('routes.export_txt') }}"
+                  class="btn btn-outline-primary">
+            📄 Скачать аккаунты
+          </button>
+          <button type="submit" formaction="{{ url_for('routes.export_letters_txt') }}"
+                  class="btn btn-primary">
+            📨 Скачать письма
+          </button>
         </div>
       </form>
     </div>

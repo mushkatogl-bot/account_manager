@@ -1178,3 +1178,123 @@ def export_txt():
         mimetype="text/plain; charset=utf-8",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
+
+# ============================================================
+# ВЫГРУЗКА ПИСЕМ В ТП (только тикеты)
+# ============================================================
+@bp.route("/export/letters", methods=["POST"])
+@login_required
+def export_letters_txt():
+    from datetime import datetime
+
+    # --- Права ---
+    is_admin = (current_user.role == "admin")
+    can_view_others = is_admin or current_user.can_view_others
+
+    # --- Фильтры (те же, что и для аккаунтов) ---
+    user_filter = request.form.get("user_filter", "").strip()
+    date_from_str = request.form.get("date_from", "").strip()
+    date_to_str = request.form.get("date_to", "").strip()
+    statuses = request.form.getlist("status")
+
+    query = Account.query
+
+    if not can_view_others:
+        query = query.filter(Account.created_by == current_user.id)
+    elif user_filter and user_filter != "all":
+        try:
+            uid = int(user_filter)
+            query = query.filter(Account.created_by == uid)
+        except ValueError:
+            pass
+
+    if date_from_str:
+        try:
+            d_from = datetime.strptime(date_from_str, "%Y-%m-%d").date()
+            query = query.filter(Account.reg_date >= d_from)
+        except ValueError:
+            pass
+    if date_to_str:
+        try:
+            d_to = datetime.strptime(date_to_str, "%Y-%m-%d").date()
+            query = query.filter(Account.reg_date <= d_to)
+        except ValueError:
+            pass
+
+    if statuses:
+        query = query.filter(Account.status.in_(statuses))
+
+    accounts = query.order_by(Account.reg_date.desc()).all()
+
+    # --- Генерация текста (только письма) ---
+    lines = []
+    lines.append("=" * 70)
+    lines.append(f"ВЫГРУЗКА ПИСЕМ В ТП")
+    lines.append(f"Дата выгрузки: {datetime.utcnow().strftime('%d.%m.%Y %H:%M')}")
+    lines.append(f"Пользователь: {current_user.username}")
+    lines.append(f"Аккаунтов с фильтром: {len(accounts)}")
+    lines.append("=" * 70)
+    lines.append("")
+
+    total_letters = 0
+
+    for i, a in enumerate(accounts, 1):
+        if not a.support_tickets:
+            continue
+
+        tickets = sorted(a.support_tickets, key=lambda t: t.letter_number)
+
+        lines.append(f"--- АККАУНТ #{i}: {a.email or '—'} (ID: {a.id}) ---")
+        lines.append(f"Дата регистрации: {a.reg_date.strftime('%d.%m.%Y') if a.reg_date else '—'}")
+        lines.append(f"Текущий статус: {a.status or '—'}")
+        lines.append("")
+
+        for t in tickets:
+            outcome_map = {
+                "pending": "⏳ Ожидание",
+                "unlocked": "✅ UNLOCK",
+                "all_gesperrt": "❌ ALL Gesperrt",
+            }
+            outcome = outcome_map.get(t.outcome, t.outcome)
+
+            lines.append(f"📨 Тикет #{t.letter_number}")
+            lines.append(f"   Дата письма: {t.sent_date.strftime('%d.%m.%Y') if t.sent_date else '—'}")
+            lines.append(f"   Скрины: {'Да' if t.screens_sent else 'Нет'}")
+            lines.append(f"   Результат: {outcome}")
+            if t.resolved_date:
+                lines.append(f"   Дата решения: {t.resolved_date.strftime('%d.%m.%Y')}")
+                if t.sent_date:
+                    days = (t.resolved_date - t.sent_date).days
+                    lines.append(f"   Дней до решения: {days}")
+            if t.text:
+                lines.append(f"   Текст письма:")
+                for line in t.text.split("\n"):
+                    lines.append(f"      {line}")
+            lines.append("")
+            total_letters += 1
+
+        lines.append("-" * 70)
+        lines.append("")
+
+    lines.insert(5, f"Всего писем: {total_letters}")
+
+    full_text = "\n".join(lines)
+
+    # Лог
+    log = Log(
+        user_id=current_user.id,
+        username=current_user.username,
+        action="export_letters",
+        target="",
+        details=f"Писем: {total_letters}",
+    )
+    db.session.add(log)
+    db.session.commit()
+
+    filename = f"letters_export_{datetime.utcnow().strftime('%Y%m%d_%H%M')}.txt"
+
+    return Response(
+        full_text,
+        mimetype="text/plain; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
